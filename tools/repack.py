@@ -44,8 +44,8 @@ TEXT_EXTENSIONS = {'.js', '.jsx', '.css', '.html', '.svg', '.json'}
 
 def repack():
     src_dir = 'src'
-    html_path = 'TabletopAI (standalone).html'
-    out_path = 'TabletopAI (standalone).html'
+    html_path = 'tabletop-ai.html'
+    out_path = 'tabletop-ai.html'
 
     with open(os.path.join(src_dir, 'manifest_meta.json'), 'r', encoding='utf-8') as f:
         meta = json.load(f)

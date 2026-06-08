@@ -88,6 +88,33 @@ function RecCard({ r, rank }) {
             <div key={i} className="rec-reason"><span className="rc-check"><I.check s={12} /></span>{rs}</div>
           ))}
         </div>
+        {r.gmapsLink && (
+          <a 
+            href={r.gmapsLink} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="ghost-btn" 
+            style={{ 
+              marginTop: 16, 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center", 
+              gap: 8, 
+              textDecoration: "none",
+              color: "var(--accent)",
+              borderColor: "color-mix(in oklch, var(--accent) 30%, transparent)",
+              width: "100%",
+              fontSize: 13,
+              fontWeight: 600,
+              padding: "9px 12px",
+              borderRadius: 10,
+              background: "color-mix(in oklch, var(--accent) 6%, transparent)",
+            }}
+          >
+            <I.pin s={14} style={{ color: "var(--accent)" }} />
+            <span>ดูแผนที่ Google Maps</span>
+          </a>
+        )}
       </div>
     </div>
   );

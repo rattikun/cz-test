@@ -4,7 +4,7 @@ import base64
 import gzip
 
 def pack():
-    html_path = 'TabletopAI (standalone).html'
+    html_path = 'tabletop-ai.html'
     src_dir = 'src'
     
     print(f"Reading manifest metadata and template...")
