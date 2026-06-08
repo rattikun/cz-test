@@ -44,6 +44,7 @@ const I = {
   shield: (p) => <Icon {...p} paths={<><path d="M12 3l7 2.5v5C19 16 12 21 12 21s-7-5-7-10.5v-5L12 3Z" /><path d="M9 11.5l2 2 4-4" /></>} />,
   x: (p) => <Icon {...p} paths={<path d="M6 6l12 12M18 6L6 18" />} />,
   clock: (p) => <Icon {...p} paths={<><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.5 2" /></>} />,
+  home: (p) => <Icon {...p} paths={<><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></>} />,
 };
 
 window.I = I;

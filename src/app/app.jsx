@@ -119,7 +119,11 @@ function App() {
           <span><I.utensils s={13} />{config.cuisine}</span>
           <span><I.wallet s={13} />{config.budget.label.split("·")[0].trim()}</span>
         </div>
-        <div className="topbar-right">
+        <div className="topbar-right" style={{ display: "flex", gap: "8px" }}>
+          <a href="index.html" className="ghost-btn" style={{ borderColor: "color-mix(in oklch, var(--accent) 30%, transparent)", textDecoration: "none" }}>
+            <I.home s={14} style={{ color: "var(--accent)" }} />
+            <span>กลับหน้าแรก</span>
+          </a>
           <button className="ghost-btn" onClick={reset}><I.search s={15} />ปรับเงื่อนไข</button>
         </div>
       </header>
