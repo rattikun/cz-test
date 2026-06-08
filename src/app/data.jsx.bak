@@ -1,0 +1,176 @@
+// data.jsx — mock dataset for the AI dining platform
+// Areas, restaurants (with full metric set), workflow stages, data sources.
+
+const AREAS = ["สยาม", "อารีย์", "ทองหล่อ", "อโศก", "พร้อมพงษ์"];
+
+const FOOD_CATEGORIES = [
+  "อาหารไทย", "อาหารญี่ปุ่น", "อาหารอิตาเลียน", "ปิ้งย่างเกาหลี", "สเต๊กเฮาส์",
+  "คาเฟ่และบรันช์", "ชาบู/หม้อไฟ", "อาหารทะเล",
+];
+
+// hue used to tint the photo placeholder so cards feel distinct
+const RESTAURANTS = [
+  {
+    id: "r1", name: "Saaj Rooftop Thai", cuisine: "อาหารไทย", area: "ทองหล่อ",
+    hue: 28, rating: 4.8, reviews: 3120, priceTHB: 850, distanceKm: 1.2,
+    capacity: 14, aiScore: 96,
+    breakdown: { reviews: 95, price: 78, distance: 88, capacity: 99, ambiance: 97 },
+    radar: { "รสชาติ": 96, "ความคุ้มค่า": 80, "การบริการ": 92, "บรรยากาศ": 97, "ความเข้ากันของกลุ่ม": 99 },
+    sources: ["Google Maps", "Wongnai", "Facebook", "เว็บไซต์ทางการ"],
+    reasons: [
+      "ที่นั่งโซนดาดฟ้ารองรับโต๊ะสำหรับ 12 คนได้สบายโดยไม่ต้องแยกกลุ่ม",
+      "คะแนน 4.8★ จากรีวิวกว่า 3,120 รายการ — มีความคงเส้นคงวาตลอด 6 เดือนที่ผ่านมา",
+      "เดินเพียง 10 นาทีจาก BTS ทองหล่อ ทุกคนเดินทางสะดวกมาก",
+    ],
+  },
+  {
+    id: "r2", name: "Ember & Oak", cuisine: "สเต๊กเฮาส์", area: "พร้อมพงษ์",
+    hue: 16, rating: 4.7, reviews: 2480, priceTHB: 1450, distanceKm: 0.9,
+    capacity: 12, aiScore: 93,
+    breakdown: { reviews: 92, price: 60, distance: 92, capacity: 90, ambiance: 95 },
+    radar: { "รสชาติ": 95, "ความคุ้มค่า": 62, "การบริการ": 90, "บรรยากาศ": 94, "ความเข้ากันของกลุ่ม": 88 },
+    sources: ["Google Maps", "Wongnai", "เว็บไซต์ทางการ"],
+    reasons: [
+      "ห้องส่วนตัวรองรับได้สูงสุด 12 คน พร้อมเมนูเซ็ตสำหรับแบ่งปัน",
+      "มีคะแนนความคิดเห็นเชิงบวกด้านคุณภาพอาหารสูงสุดในกลุ่มสเต๊กเฮาส์",
+      "ตั้งอยู่บน EmQuartier โดยตรง — ไม่ต้องเดินตากฝนเลย",
+    ],
+  },
+  {
+    id: "r3", name: "Yuzu Izakaya House", cuisine: "อาหารญี่ปุ่น", area: "อารีย์",
+    hue: 200, rating: 4.6, reviews: 1890, priceTHB: 720, distanceKm: 1.6,
+    capacity: 16, aiScore: 91,
+    breakdown: { reviews: 88, price: 82, distance: 80, capacity: 99, ambiance: 88 },
+    radar: { "รสชาติ": 90, "ความคุ้มค่า": 84, "การบริการ": 86, "บรรยากาศ": 88, "ความเข้ากันของกลุ่ม": 96 },
+    sources: ["Google Maps", "Wongnai", "Facebook"],
+    reasons: [
+      "โต๊ะยาวส่วนกลางเหมาะอย่างยิ่งสำหรับ 8–16 คน พร้อมอาหารจานแชร์",
+      "อัตราส่วนราคาต่อคะแนนรีวิวดีที่สุดในบรรดาผลลัพธ์อันดับต้นๆ",
+      "บรรยากาศร้านแนวอิซากายะที่คึกคัก เหมาะกับมื้อค่ำเลี้ยงสังสรรค์ในที่ทำงาน",
+    ],
+  },
+  {
+    id: "r4", name: "Trattoria Lumina", cuisine: "อาหารอิตาเลียน", area: "อโศก",
+    hue: 8, rating: 4.6, reviews: 2210, priceTHB: 980, distanceKm: 1.1,
+    capacity: 12, aiScore: 89,
+    breakdown: { reviews: 87, price: 70, distance: 86, capacity: 90, ambiance: 90 },
+    radar: { "รสชาติ": 89, "ความคุ้มค่า": 72, "การบริการ": 88, "บรรยากาศ": 90, "ความเข้ากันของกลุ่ม": 86 },
+    sources: ["Google Maps", "Wongnai", "เว็บไซต์ทางการ"],
+    reasons: [
+      "จานพาสต้าสไตล์ครอบครัวทำให้ประเมินค่าใช้จ่ายต่อคนได้ง่าย",
+      "เงียบพอจะพูดคุยตลอดโต๊ะยาวได้",
+      "เดิน 5 นาทีจากบีทีเอสอโศก / สถานีรถไฟฟ้าสุขุมวิท",
+    ],
+  },
+  {
+    id: "r5", name: "Seoul Smoke BBQ", cuisine: "ปิ้งย่างเกาหลี", area: "สยาม",
+    hue: 350, rating: 4.5, reviews: 2760, priceTHB: 690, distanceKm: 0.7,
+    capacity: 12, aiScore: 88,
+    breakdown: { reviews: 90, price: 84, distance: 95, capacity: 88, ambiance: 80 },
+    radar: { "รสชาติ": 88, "ความคุ้มค่า": 86, "การบริการ": 82, "บรรยากาศ": 80, "ความเข้ากันของกลุ่ม": 90 },
+    sources: ["Google Maps", "Wongnai", "Facebook"],
+    reasons: [
+      "บุฟเฟต์ปิ้งย่างควบคุมค่าใช้จ่ายได้คงที่สำหรับกลุ่มใหญ่ที่หิวโหย",
+      "ตัวเลือกที่ใกล้ที่สุดจาก BTS สยาม — เดินไม่ถึง 5 นาที",
+      "กิจกรรมปิ้งย่างที่โต๊ะช่วยกระชับความสัมพันธ์และละลายพฤติกรรมได้ดี",
+    ],
+  },
+  {
+    id: "r6", name: "The Greenhouse Brunch", cuisine: "คาเฟ่และบรันช์", area: "อารีย์",
+    hue: 150, rating: 4.7, reviews: 1540, priceTHB: 560, distanceKm: 1.4,
+    capacity: 10, aiScore: 86,
+    breakdown: { reviews: 89, price: 88, distance: 82, capacity: 78, ambiance: 92 },
+    radar: { "รสชาติ": 87, "ความคุ้มค่า": 90, "การบริการ": 85, "บรรยากาศ": 92, "ความเข้ากันของกลุ่ม": 78 },
+    sources: ["Google Maps", "Wongnai", "เว็บไซต์ทางการ"],
+    reasons: [
+      "บรรยากาศสวนที่สว่างสดใส เหมาะอย่างยิ่งสำหรับการพบปะสังสรรค์ในเวลากลางวัน",
+      "ราคาประหยัดที่สุดต่อหัวเมื่อเทียบกับร้านอื่นๆ ในรายการแนะนำ",
+      "แสงธรรมชาติสวยงามมาก — ยอดนิยมสำหรับการถ่ายภาพหมู่",
+    ],
+  },
+  {
+    id: "r7", name: "Mae Nam Seafood Deck", cuisine: "อาหารทะเล", area: "อโศก",
+    hue: 190, rating: 4.4, reviews: 1980, priceTHB: 1100, distanceKm: 2.1,
+    capacity: 14, aiScore: 84,
+    breakdown: { reviews: 84, price: 64, distance: 70, capacity: 95, ambiance: 86 },
+    radar: { "รสชาติ": 86, "ความคุ้มค่า": 66, "การบริการ": 80, "บรรยากาศ": 86, "ความเข้ากันของกลุ่ม": 92 },
+    sources: ["Google Maps", "Wongnai"],
+    reasons: [
+      "โซนริมแม่น้ำรองรับกลุ่มใหญ่พร้อมชมทัศนียภาพที่สวยงาม",
+      "เซ็ตปลาตัวใหญ่สำหรับแบ่งปันเหมาะสำหรับกลุ่มขนาด 14 คน",
+      "อยู่ห่างออกไปเล็กน้อย — สะดวกที่สุดหากเดินทางด้วยรถแท็กซี่",
+    ],
+  },
+  {
+    id: "r8", name: "Tom Yum Theory", cuisine: "อาหารไทย", area: "สยาม",
+    hue: 40, rating: 4.5, reviews: 2340, priceTHB: 620, distanceKm: 0.8,
+    capacity: 10, aiScore: 83,
+    breakdown: { reviews: 86, price: 86, distance: 93, capacity: 76, ambiance: 78 },
+    radar: { "รสชาติ": 85, "ความคุ้มค่า": 88, "การบริการ": 80, "บรรยากาศ": 78, "ความเข้ากันของกลุ่ม": 80 },
+    sources: ["Google Maps", "Wongnai", "Facebook"],
+    reasons: [
+      "อาหารไทยต้นตำรับรสชาติไว้ใจได้ พร้อมบริการอาหารที่รวดเร็ว",
+      "ทำเลใจกลางสยาม เดินทางสะดวกสำหรับสมาชิกที่มาจากหลากหลายเส้นทาง",
+      "อยู่ในงบประมาณต่ำกว่า 700฿ ต่อคนได้อย่างสบายๆ",
+    ],
+  },
+  {
+    id: "r9", name: "Kanto Hotpot Bar", cuisine: "ชาบู/หม้อไฟ", area: "พร้อมพงษ์",
+    hue: 12, rating: 4.4, reviews: 1620, priceTHB: 780, distanceKm: 1.3,
+    capacity: 12, aiScore: 81,
+    breakdown: { reviews: 82, price: 80, distance: 84, capacity: 90, ambiance: 74 },
+    radar: { "รสชาติ": 83, "ความคุ้มค่า": 82, "การบริการ": 78, "บรรยากาศ": 74, "ความเข้ากันของกลุ่ม": 88 },
+    sources: ["Google Maps", "Wongnai"],
+    reasons: [
+      "หม้อไฟส่วนตัวตอบโจทย์ความต้องการอาหารที่หลากหลายของคนในกลุ่ม",
+      "ราคาเซ็ตต่อคนทำให้การหารบิลทำได้ง่ายและตรงไปตรงมา",
+      "ห้องกว้างบรรยากาศอบอุ่นเป็นกันเองที่รองรับเสียงหัวเราะของกลุ่มใหญ่ได้ดี",
+    ],
+  },
+  {
+    id: "r10", name: "Bianca Pasta Lab", cuisine: "อาหารอิตาเลียน", area: "ทองหล่อ",
+    hue: 24, rating: 4.5, reviews: 1410, priceTHB: 1020, distanceKm: 1.7,
+    capacity: 10, aiScore: 79,
+    breakdown: { reviews: 83, price: 68, distance: 78, capacity: 76, ambiance: 88 },
+    radar: { "รสชาติ": 86, "ความคุ้มค่า": 70, "การบริการ": 84, "บรรยากาศ": 88, "ความเข้ากันของกลุ่ม": 76 },
+    sources: ["Google Maps", "Wongnai", "เว็บไซต์ทางการ"],
+    reasons: [
+      "คอร์สอาหารพิเศษจากเชฟเหมาะสำหรับการเลี้ยงฉลองระดับพรีเมียมขนาดเล็ก",
+      "ห้องบรรยากาศเป็นส่วนตัวอบอุ่น — เหมาะที่สุดสำหรับผู้เข้างานไม่เกิน 10 คน",
+      "การตกแต่งภายในที่เน้นดีไซน์ล้ำสมัย ได้รับคะแนนบรรยากาศสูงมาก",
+    ],
+  },
+];
+
+// AI pipeline stages shown in the workflow visualization
+const WORKFLOW_STAGES = [
+  { id: "input", title: "รับข้อมูลจากผู้ใช้", desc: "บันทึกพื้นที่ จำนวนคน งบประมาณ และประเภทอาหาร", icon: "cursor", metric: "4 พารามิเตอร์" },
+  { id: "search", title: "ค้นหาร้านอาหาร", desc: "ค้นหาร้านในพื้นที่ที่เลือก", icon: "search", metric: "142 ร้าน" },
+  { id: "reviews", title: "รวบรวมรีวิว", desc: "รวบรวมรีวิวจากแหล่งที่น่าเชื่อถือ", icon: "messages", metric: "38,400 รีวิว" },
+  { id: "clean", title: "ทำความสะอาดข้อมูล", desc: "ลบข้อมูลซ้ำและกรองสัญญาณรบกวน", icon: "filter", metric: "−61% สัญญาณรบกวน" },
+  { id: "analyze", title: "วิเคราะห์ด้วย AI", desc: "วิเคราะห์ความรู้สึกและความเหมาะกับกลุ่มของแต่ละร้าน", icon: "brain", metric: "โมเดล v4" },
+  { id: "score", title: "คำนวณคะแนนถ่วงน้ำหนัก", desc: "ถ่วงน้ำหนัก รีวิว · ราคา · ระยะทาง · ความจุ", icon: "sliders", metric: "5 ปัจจัย" },
+  { id: "rank", title: "จัดอันดับ", desc: "เรียงลำดับร้านตามคะแนน AI รวม", icon: "list", metric: "Top 10" },
+  { id: "recommend", title: "แนะนำร้าน", desc: "เลือก 3 ร้านที่ดีที่สุดพร้อมเหตุผล", icon: "sparkles", metric: "Top 3" },
+  { id: "report", title: "สรุปผล", desc: "รวบรวมรายงานการตัดสินใจในรูปแบบ HTML", icon: "file", metric: "1 รายงาน" },
+];
+
+// scoring weights used in the weighted-score breakdown viz
+const SCORE_WEIGHTS = [
+  { key: "reviews", label: "คุณภาพรีวิว", weight: 30, hue: "accent" },
+  { key: "capacity", label: "เหมาะกับกลุ่ม", weight: 25, hue: "accent2" },
+  { key: "distance", label: "การเดินทาง", weight: 20, hue: "pos" },
+  { key: "price", label: "ความคุ้มค่า", weight: 15, hue: "warn" },
+  { key: "ambiance", label: "บรรยากาศ", weight: 10, hue: "accent" },
+];
+
+const DATA_SOURCES = [
+  { id: "gmaps", name: "Google Maps", detail: "คะแนน ที่ตั้ง และความนิยมแบบเรียลไทม์", glyph: "pin", records: "21,800 รีวิว" },
+  { id: "wongnai", name: "Wongnai", detail: "รีวิวร้านอาหารไทยและเมนูท้องถิ่น", glyph: "star", records: "12,300 รีวิว" },
+  { id: "facebook", name: "Facebook", detail: "เช็กอินและโพสต์จากชุมชน", glyph: "chat", records: "3,400 โพสต์" },
+  { id: "official", name: "เว็บไซต์ทางการ", detail: "เวลาทำการ ความจุ และราคาที่ยืนยันแล้ว", glyph: "globe", records: "10 ร้าน" },
+];
+
+Object.assign(window, {
+  AREAS, FOOD_CATEGORIES, RESTAURANTS, WORKFLOW_STAGES, SCORE_WEIGHTS, DATA_SOURCES,
+});

@@ -1,0 +1,2183 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบจำลองและวิเคราะห์โอกาสเปิดกาชา (GachaSim)</title>
+  <meta name="description" content="ระบบจำลองโอกาสดรอปกาชา วิเคราะห์งบประมาณผู้เล่น (Monte Carlo) และระบบการันตี (Pity) ทำงานบนเบราว์เซอร์ 100%">
+  
+  <!-- TabletopAI Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* TabletopAI Theme Variables */
+    :root {
+      --display: "IBM Plex Sans Thai", "Space Grotesk", system-ui, sans-serif;
+      --body: "IBM Plex Sans Thai", "Manrope", system-ui, sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, monospace;
+      --bg-hue: 250;
+      
+      /* Core Palette */
+      --accent: oklch(0.82 0.13 195);     /* Cyan/Sky Blue - R color */
+      --accent2: oklch(0.72 0.16 292);    /* Violet/Purple - SR color */
+      --pos: oklch(0.80 0.14 158);        /* Emerald Green - Success */
+      --warn: oklch(0.84 0.14 78);        /* Amber Gold - SSR color */
+      
+      /* Backgrounds */
+      --bg: oklch(0.155 0.014 var(--bg-hue));
+      --bg2: oklch(0.185 0.016 var(--bg-hue));
+      
+      /* Text */
+      --text: oklch(0.96 0.005 var(--bg-hue));
+      --text-dim: oklch(0.74 0.012 var(--bg-hue));
+      --text-faint: oklch(0.56 0.012 var(--bg-hue));
+      
+      /* Border & Glow */
+      --border: oklch(0.72 0.02 var(--bg-hue) / 0.16);
+      --glow: color-mix(in oklch, var(--accent) 50%, transparent);
+      --glow-a: 0.3;
+
+      /* Rarity Color Coding mapped to Tokens */
+      --color-ssr: var(--warn);
+      --color-sr: var(--accent2);
+      --color-r: var(--accent);
+      --color-n: var(--text-faint);
+      --color-primary: var(--accent2);
+      --color-success: var(--pos);
+      --color-danger: oklch(0.70 0.15 20); /* Danger Red */
+
+      --ssr-glow: 0 0 12px color-mix(in oklch, var(--warn) 45%, transparent);
+      --primary-glow: 0 0 12px color-mix(in oklch, var(--accent) 45%, transparent);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--body);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* Selection Color */
+    ::selection {
+      background: color-mix(in oklch, var(--accent) 40%, transparent);
+    }
+
+    /* App Shell */
+    .app {
+      position: relative;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      z-index: 1;
+    }
+
+    /* Background Effects */
+    .bg-fx {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: calc(0.18 + var(--glow-a) * 0.5);
+    }
+    .orb-a {
+      width: 520px;
+      height: 520px;
+      background: var(--accent);
+      top: -160px;
+      right: -80px;
+    }
+    .orb-b {
+      width: 480px;
+      height: 480px;
+      background: var(--accent2);
+      bottom: -180px;
+      left: -120px;
+    }
+    .grid-fade {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(var(--border) 1px, transparent 1px),
+                        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 46px 46px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 75%);
+      opacity: 0.5;
+    }
+
+    /* Scrollable App Body */
+    .app-body {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+      z-index: 1;
+      scroll-behavior: smooth;
+    }
+    .app-body::-webkit-scrollbar {
+      width: 10px;
+    }
+    .app-body::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 99px;
+      border: 3px solid transparent;
+      background-clip: padding-box;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+    }
+
+    /* Topbar Header */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 14px 26px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in oklch, var(--bg) 70%, transparent);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      position: relative;
+      z-index: 5;
+      flex-shrink: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 18px -4px var(--glow);
+    }
+    .brand-name {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      letter-spacing: .02em;
+      white-space: nowrap;
+    }
+    .topbar-config {
+      display: flex;
+      gap: 8px;
+      margin-left: 20px;
+      flex-wrap: wrap;
+    }
+    .topbar-config span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in oklch, var(--bg2) 60%, transparent);
+      transition: all 0.2s ease;
+    }
+    .topbar-config span svg {
+      color: var(--accent);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: var(--display);
+      letter-spacing: -0.01em;
+      margin: 0;
+    }
+
+    /* Grids & Layout */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .full-width-section {
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Glass Panels */
+    .glass {
+      background: color-mix(in oklch, var(--bg2) 78%, transparent);
+      backdrop-filter: blur(20px) saturate(1.2);
+      -webkit-backdrop-filter: blur(20px) saturate(1.2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .glass:hover {
+      box-shadow: 0 12px 40px rgba(167, 139, 250, 0.08);
+      border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+
+    /* Form Inputs */
+    input[type="text"], input[type="number"], select {
+      background: color-mix(in oklch, var(--bg2) 60%, transparent);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      font-family: inherit;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 20%, transparent);
+    }
+
+    /* Buttons Style mapping to TabletopAI CTA & Ghost */
+    button {
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      background: color-mix(in oklch, var(--bg2) 50%, transparent);
+      transition: .18s;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+    }
+    button:hover {
+      color: var(--text);
+      border-color: color-mix(in oklch, var(--accent) 40%, transparent);
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+
+    /* Primary CTA Button style */
+    button.primary, button[type="submit"]:not(.btn-secondary), #btn-start-single, #btn-start-pov {
+      font-family: var(--display);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--bg);
+      padding: 10px 20px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      box-shadow: 0 6px 20px -6px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    button.primary:hover, button[type="submit"]:not(.btn-secondary):hover, #btn-start-single:hover, #btn-start-pov:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 26px -6px var(--glow);
+      color: var(--bg);
+    }
+    button:disabled {
+      background: color-mix(in oklch, var(--bg2) 80%, transparent) !important;
+      color: var(--text-faint) !important;
+      border: 1px solid var(--border) !important;
+      cursor: not-allowed !important;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+
+    /* Toggles / Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: color-mix(in oklch, var(--bg2) 80%, transparent);
+      border: 1px solid var(--border);
+      transition: .2s;
+      border-radius: 22px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: var(--text-dim);
+      transition: .2s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-color: transparent;
+      box-shadow: 0 0 12px -2px var(--glow);
+    }
+    input:checked + .slider:before {
+      transform: translateX(22px);
+      background-color: var(--bg);
+    }
+
+    /* Rate Inputs Grid */
+    .rate-inputs-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .rate-input-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .rate-input-row label {
+      font-weight: bold;
+      color: var(--rarity-color);
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+    }
+    .rate-input-row label::before {
+      content: '';
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: var(--rarity-color);
+      margin-right: 8px;
+      box-shadow: var(--glow-effect, none);
+    }
+    .input-addon {
+      display: flex;
+      align-items: center;
+      background: color-mix(in oklch, var(--bg2) 60%, transparent);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      width: 130px;
+    }
+    .input-addon input {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      padding: 0.5rem;
+      width: 100%;
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 1rem;
+    }
+    .input-addon input:focus {
+      outline: none;
+      box-shadow: none;
+    }
+    .input-addon:focus-within {
+      border-color: var(--rarity-color);
+      box-shadow: 0 0 0 2px color-mix(in oklch, var(--rarity-color) 20%, transparent);
+    }
+    .addon-text {
+      padding: 0 0.75rem;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      background: rgba(255, 255, 255, 0.02);
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      border-left: 1px solid var(--border);
+    }
+    .rate-summary {
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Error Box */
+    .error-box {
+      background-color: color-mix(in oklch, var(--color-danger) 14%, transparent);
+      border: 1px solid color-mix(in oklch, var(--color-danger) 28%, transparent);
+      color: var(--color-danger);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      line-height: 1.4;
+    }
+
+    /* Item Table & Badges */
+    .item-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .item-table th, .item-table td {
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .item-table th {
+      font-weight: 600;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .item-table tr:hover {
+      background-color: color-mix(in oklch, var(--bg) 20%, transparent);
+    }
+    .rarity-badge {
+      font-size: 0.72rem;
+      font-weight: bold;
+      color: var(--bg) !important;
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      text-align: center;
+      width: 42px;
+      letter-spacing: 0.05em;
+    }
+    .rarity-badge-sm {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-right: 8px;
+      color: var(--bg) !important;
+      display: inline-block;
+      text-align: center;
+      width: 38px;
+    }
+
+    /* Stat Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: color-mix(in oklch, var(--bg2) 50%, transparent);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .stat-card:hover {
+      border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+      background: color-mix(in oklch, var(--bg2) 70%, transparent);
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 0.4rem;
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .ssr-glow-card {
+      box-shadow: 0 0 15px color-mix(in oklch, var(--warn) 30%, transparent);
+      border-color: color-mix(in oklch, var(--warn) 50%, transparent) !important;
+    }
+
+    /* Results layout */
+    .results-layout {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .inner-card {
+      background: color-mix(in oklch, var(--bg2) 40%, transparent);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .item-result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .item-result-row:last-child {
+      border-bottom: none;
+    }
+    .rarity-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @media (max-width: 768px) {
+      .results-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Fallback Charts CSS */
+    #rarity-chart-fallback {
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-end;
+      height: 250px;
+      border-bottom: 1px solid var(--border);
+      padding: 10px;
+    }
+    .fallback-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 20%;
+      height: 100%;
+      justify-content: flex-end;
+    }
+    .fallback-bars-wrapper {
+      position: relative;
+      width: 100%;
+      height: 75%;
+      display: flex;
+      align-items: flex-end;
+    }
+    .fallback-bar {
+      transition: height 0.3s ease;
+    }
+    .fallback-stats {
+      text-align: center;
+      font-family: var(--mono);
+      margin-top: 6px;
+      line-height: 1.2;
+    }
+
+    /* Simulation History */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .history-table th, .history-table td {
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-table th {
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .history-table tr:hover {
+      background-color: color-mix(in oklch, var(--bg) 20%, transparent);
+    }
+
+    /* Utility styling */
+    .flex-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .monospace {
+      font-family: var(--mono);
+    }
+
+    /* Tabs Layout */
+    .tabs-container {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25rem;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-dim);
+      border-radius: 0;
+      padding: 10px 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.95rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+      border-bottom-color: color-mix(in oklch, var(--accent) 40%, transparent);
+      background: transparent;
+      border-color: transparent transparent color-mix(in oklch, var(--accent) 40%, transparent) transparent;
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: transparent;
+      border-color: transparent transparent var(--accent) transparent;
+    }
+    .tab-btn:active {
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background FX -->
+  <div class="bg-fx">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="grid-fade"></div>
+  </div>
+
+  <div class="app">
+    
+    <!-- Topbar Header -->
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+        </div>
+        <div>
+          <div class="brand-name">GachaSim</div>
+          <div class="brand-sub">ระบบสุ่มจำลองเรทกาชา</div>
+        </div>
+      </div>
+      <div class="topbar-config">
+        <span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span id="topbar-rate-total">เรทรวม: --</span>
+        </span>
+        <span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span id="topbar-pity-status">ระบบการันตี: ปิด</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Scrollable main body -->
+    <div class="app-body">
+      <div class="container">
+        
+        <div class="main-grid">
+          
+          <!-- Section 1 - Rate Settings -->
+          <section class="glass">
+            <h2 class="card-title" style="color: var(--color-primary);">⚙️ ตั้งค่าอัตราดรอป (Rate Settings)</h2>
+            
+            <div class="rate-inputs-grid">
+              <div class="rate-input-row" style="--rarity-color: var(--color-ssr); --glow-effect: var(--ssr-glow);">
+                <label for="rate-ssr">SSR</label>
+                <div class="input-addon">
+                  <input type="number" id="rate-ssr" value="1" step="any" min="0" max="100">
+                  <span class="addon-text">%</span>
+                </div>
+              </div>
+              <div class="rate-input-row" style="--rarity-color: var(--color-sr);">
+                <label for="rate-sr">SR</label>
+                <div class="input-addon">
+                  <input type="number" id="rate-sr" value="9" step="any" min="0" max="100">
+                  <span class="addon-text">%</span>
+                </div>
+              </div>
+              <div class="rate-input-row" style="--rarity-color: var(--color-r);">
+                <label for="rate-r">R</label>
+                <div class="input-addon">
+                  <input type="number" id="rate-r" value="30" step="any" min="0" max="100">
+                  <span class="addon-text">%</span>
+                </div>
+              </div>
+              <div class="rate-input-row" style="--rarity-color: var(--color-n);">
+                <label for="rate-n">N</label>
+                <div class="input-addon">
+                  <input type="number" id="rate-n" value="60" step="any" min="0" max="100">
+                  <span class="addon-text">%</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rate-summary">
+              <span style="color: var(--text-dim); font-size: 0.95rem;">อัตราดรอปรวมทั้งหมด:</span>
+              <div id="rate-total-display" class="monospace" style="font-size: 1.15rem; font-weight: bold;">Total: --</div>
+            </div>
+
+            <div id="rate-settings-error" class="error-box" style="display: none; margin-top: 1rem;"></div>
+          </section>
+
+          <!-- Section 2 - Item Pool Management -->
+          <section class="glass" style="display: flex; flex-direction: column; height: 350px;">
+            <h2 class="card-title" style="color: var(--color-primary);">📦 จัดการรายการไอเทม (Item Pool)</h2>
+            
+            <form id="item-add-form" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+              <input type="text" id="item-name-input" placeholder="ชื่อไอเทม" required style="flex-grow: 2; min-width: 120px;">
+              <select id="item-rarity-select" style="flex-grow: 1; min-width: 80px;">
+                <option value="SSR" style="color: var(--color-ssr); background: var(--bg2);">SSR</option>
+                <option value="SR" style="color: var(--color-sr); background: var(--bg2);">SR</option>
+                <option value="R" style="color: var(--color-r); background: var(--bg2);">R</option>
+                <option value="N" style="color: var(--color-n); background: var(--bg2);">N</option>
+              </select>
+              <button type="submit" id="btn-add-item">＋ เพิ่มไอเทม</button>
+              <button type="button" id="btn-cancel-edit" class="btn-secondary" style="display: none;">ยกเลิก</button>
+            </form>
+
+            <div style="flex-grow: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: rgba(0, 0, 0, 0.15);">
+              <table class="item-table">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem; color: var(--text-dim); text-align: left;">
+                    <th style="padding: 0.5rem 0.75rem; width: 65px;">ระดับ</th>
+                    <th style="padding: 0.5rem 0.75rem;">ชื่อไอเทม</th>
+                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 120px;">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="item-pool-tbody">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="item-pool-error" class="error-box" style="display: none; margin-top: 1rem;"></div>
+          </section>
+
+        </div>
+
+        <!-- Section 3 - Simulation (จำลองการสุ่ม) -->
+        <section class="glass full-width-section">
+          <h2 class="card-title" style="color: var(--color-primary); border-bottom: none; margin-bottom: 0.5rem; padding-bottom: 0;">🎮 จำลองการสุ่ม</h2>
+          
+          <!-- Tab Navigation -->
+          <div class="tabs-container">
+            <button class="tab-btn active" data-tab="single-sim">🎲 จำลองการสุ่มปกติ</button>
+            <button class="tab-btn" data-tab="pov-sim">👤 จำลองในมุมมองผู้เล่น</button>
+          </div>
+
+          <!-- Tab Content Wrapper -->
+          <div class="tab-contents">
+            
+            <!-- Tab Pane 1: Single Simulation -->
+            <div class="tab-content" id="tab-single-sim">
+              
+              <div style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                <div style="display: flex; flex-direction: column; gap: 0.4rem; min-width: 140px;">
+                  <label for="single-rolls" style="font-size: 0.88rem; color: var(--text-dim);">จำนวนการสุ่ม (ครั้ง)</label>
+                  <input type="number" id="single-rolls" value="100" min="1" step="1">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem; min-width: 140px;">
+                  <label for="single-cost" style="font-size: 0.88rem; color: var(--text-dim);">ค่าใช้จ่ายต่อการสุ่ม (฿)</label>
+                  <input type="number" id="single-cost" value="30" min="0">
+                </div>
+                <button id="btn-start-single" style="height: 38px;">▶ เริ่มสุ่มกาชา</button>
+              </div>
+
+              <div id="single-sim-error" class="error-box" style="display: none; margin-bottom: 1.5rem;"></div>
+
+              <!-- Single simulation results, initially hidden -->
+              <div id="single-results-panel" style="display: none;">
+                
+                <!-- Stat Cards -->
+                <div class="stats-grid">
+                  <div class="stat-card">
+                    <div class="stat-label">จำนวนสุ่มทั้งหมด</div>
+                    <div class="stat-value monospace" id="stat-total-rolls">-</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">ค่าใช้จ่ายทั้งหมด</div>
+                    <div class="stat-value monospace" id="stat-total-cost">-</div>
+                  </div>
+                  <div class="stat-card" id="card-ssr-count">
+                    <div class="stat-label" style="color: var(--color-ssr);">จำนวน SSR ที่ดรอป</div>
+                    <div class="stat-value monospace" id="stat-ssr-count" style="color: var(--color-ssr); text-shadow: var(--ssr-glow);">-</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">ระดับที่ดรอปบ่อยที่สุด</div>
+                    <div class="stat-value monospace" id="stat-most-common">-</div>
+                  </div>
+                </div>
+
+                <!-- Breakdown table and Item list grid -->
+                <div class="results-layout">
+                  
+                  <div class="inner-card">
+                    <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">วิเคราะห์อัตราส่วนดรอป</h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <thead>
+                        <tr style="border-bottom: 1px solid var(--border); text-align: left; font-size: 0.85rem; color: var(--text-dim);">
+                          <th style="padding: 0.5rem;">ระดับ</th>
+                          <th style="padding: 0.5rem;">เรทที่ตั้งค่า</th>
+                          <th style="padding: 0.5rem;">จำนวนที่ได้</th>
+                          <th style="padding: 0.5rem;">อัตราดรอปจริง</th>
+                        </tr>
+                      </thead>
+                      <tbody id="single-results-tbody">
+                        <!-- Dynamic breakdown -->
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="inner-card" style="display: flex; flex-direction: column; max-height: 250px;">
+                    <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">สถิติตามรายชื่อไอเทม</h3>
+                    <div id="single-item-results" style="overflow-y: auto; flex-grow: 1; padding-right: 5px;">
+                      <!-- Dynamic items count list -->
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- Distribution Chart -->
+                <div class="inner-card" style="margin-bottom: 1.5rem;">
+                  <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">แผนภูมิแสดงอัตราส่วนการดรอป</h3>
+                  <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="rarity-chart" style="display: none;"></canvas>
+                    <div id="rarity-chart-fallback" style="display: none;"></div>
+                  </div>
+                </div>
+
+                <!-- Export CSV Actions -->
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 1.5rem;">
+                  <button id="btn-export-pulls" class="btn-secondary">⬇ ดาวน์โหลดประวัติการสุ่ม (CSV)</button>
+                </div>
+
+              </div>
+
+              <!-- History for Single Simulation -->
+              <div class="history-sub-section" style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+                <div class="flex-between" style="margin-bottom: 1.25rem;">
+                  <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">📜 ประวัติการจำลองสุ่มปกติ (10 ครั้งล่าสุด)</h3>
+                  <button id="btn-clear-history" class="btn-danger btn-sm" style="display: flex; align-items: center; gap: 0.3rem;">🗑 ล้างประวัติ</button>
+                </div>
+                <div style="overflow-x: auto;">
+                  <table class="history-table">
+                    <thead>
+                      <tr style="border-bottom: 1px solid var(--border); color: var(--text-dim); text-align: left;">
+                        <th style="padding: 0.6rem 0.75rem;">เวลาจำลอง</th>
+                        <th style="padding: 0.6rem 0.75rem;">จำนวนครั้งที่สุ่ม</th>
+                        <th style="padding: 0.6rem 0.75rem;">ค่าใช้จ่ายทั้งหมด</th>
+                        <th style="padding: 0.6rem 0.75rem; color: var(--color-ssr);">จำนวน SSR ที่ได้</th>
+                        <th style="padding: 0.6rem 0.75rem;">อัตราการดรอป SSR จริง</th>
+                      </tr>
+                    </thead>
+                    <tbody id="history-tbody">
+                      <!-- Dynamic history runs -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Tab Pane 2: Player POV Simulation -->
+            <div class="tab-content" id="tab-pov-sim" style="display: none;">
+              
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                  <label for="pov-budget" style="font-size: 0.88rem; color: var(--text-dim);">งบประมาณการสุ่ม (฿)</label>
+                  <input type="number" id="pov-budget" value="3000" min="1">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                  <label for="pov-price" style="font-size: 0.88rem; color: var(--text-dim);">ราคาต่อการสุ่มหนึ่งครั้ง (฿)</label>
+                  <input type="number" id="pov-price" value="30" min="0">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                  <label for="pov-sims" style="font-size: 0.88rem; color: var(--text-dim);">จำนวนรอบจำลอง (รอบ - สูงสุด 100k)</label>
+                  <input type="number" id="pov-sims" value="1000" min="1" max="100000" step="100">
+                </div>
+              </div>
+
+              <!-- Toggles Grid (Free Rolls & Pity) -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;" class="toggles-grid">
+                
+                <!-- Free Roll settings -->
+                <div class="inner-card">
+                  <div class="flex-between" style="margin-bottom: 0.75rem;">
+                    <label for="free-roll-toggle" style="font-weight: 600; font-size: 0.95rem;">🎁 โบนัสสุ่มฟรี (Free Roll)</label>
+                    <label class="switch">
+                      <input type="checkbox" id="free-roll-toggle" checked>
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div id="free-roll-settings-inputs" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 100px; display: flex; flex-direction: column; gap: 0.2rem;">
+                      <label style="font-size: 0.8rem; color: var(--text-dim);">เมื่อสุ่มครบทุก (ครั้ง)</label>
+                      <input type="number" id="free-every-x" value="10" min="1" style="padding: 0.4rem;">
+                    </div>
+                    <div style="flex: 1; min-width: 100px; display: flex; flex-direction: column; gap: 0.2rem;">
+                      <label style="font-size: 0.8rem; color: var(--text-dim);">รับสิทธิ์สุ่มฟรีเพิ่ม (ครั้ง)</label>
+                      <input type="number" id="free-gets-y" value="1" min="1" style="padding: 0.4rem;">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Pity configuration -->
+                <div class="inner-card">
+                  <div class="flex-between" style="margin-bottom: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <label for="pity-toggle" style="font-weight: 600; font-size: 0.95rem;">⚖️ ระบบการันตี (Pity)</label>
+                      <span id="current-pity-display" class="badge-pity" style="display: none; font-family: var(--mono); font-size: 0.8rem; color: var(--color-ssr); background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); padding: 2px 6px; border-radius: 4px;">Pity: 0</span>
+                    </div>
+                    <label class="switch">
+                      <input type="checkbox" id="pity-toggle">
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                  <div id="pity-settings-inputs" style="display: none; gap: 0.5rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 0.2rem;">
+                      <label style="font-size: 0.8rem; color: var(--text-dim);">เริ่มการันตี (Soft Pity) สุ่มครั้งที่</label>
+                      <input type="number" id="pity-soft" value="80" min="1" style="padding: 0.4rem;">
+                    </div>
+                    <div style="flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 0.2rem;">
+                      <label style="font-size: 0.8rem; color: var(--text-dim);">การันตี 100% (Hard Pity) ครั้งที่</label>
+                      <input type="number" id="pity-hard" value="90" min="1" style="padding: 0.4rem;">
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div style="margin-bottom: 1.5rem;">
+                <button id="btn-start-pov" style="width: 100%;">▶ เริ่มจำลองสถานการณ์สุ่ม (Monte Carlo)</button>
+              </div>
+
+              <div id="pov-sim-error" class="error-box" style="display: none; margin-bottom: 1.5rem;"></div>
+
+              <!-- Monte Carlo results, initially hidden -->
+              <div id="pov-results-panel" style="display: none;">
+                
+                <!-- Session Roll breakdown -->
+                <h3 style="font-size: 1.1rem; margin-top: 0; margin-bottom: 0.75rem;">ผลลัพธ์สิทธิ์สุ่มรวมต่อรอบ</h3>
+                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); text-align: center;">
+                  <div class="stat-card">
+                    <div class="stat-label">จำนวนสุ่มแบบจ่ายเงิน</div>
+                    <div class="stat-value monospace" id="stat-paid-rolls">-</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label" style="color: var(--color-primary);">จำนวนสุ่มฟรีที่ได้</div>
+                    <div class="stat-value monospace" id="stat-free-rolls" style="color: var(--color-primary);">-</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">สิทธิ์สุ่มรวมต่อรอบ</div>
+                    <div class="stat-value monospace" id="stat-total-rolls-pov">-</div>
+                  </div>
+                </div>
+
+                <!-- Monte Carlo Probability results -->
+                <h3 style="font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.75rem;">ดัชนีโอกาสความน่าจะเป็น</h3>
+                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); text-align: center;">
+                  <div class="stat-card" style="border-color: color-mix(in oklch, var(--pos) 30%, transparent);">
+                    <div class="stat-label" style="color: var(--color-success);">โอกาสได้ SSR อย่างน้อย 1 ชิ้น</div>
+                    <div class="stat-value monospace" id="stat-chance-ge1" style="color: var(--color-success);">-</div>
+                  </div>
+                  <div class="stat-card" style="border-color: color-mix(in oklch, var(--color-danger) 30%, transparent);">
+                    <div class="stat-label" style="color: var(--color-danger);">โอกาสสุ่มเกลือ (ไม่ได้ SSR เลย)</div>
+                    <div class="stat-value monospace" id="stat-chance-0" style="color: var(--color-danger);">-</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">ค่าเฉลี่ย SSR ที่ได้ต่อรอบ</div>
+                    <div class="stat-value monospace" id="stat-avg-ssr">-</div>
+                  </div>
+                  <div class="stat-card" style="border-color: color-mix(in oklch, var(--warn) 30%, transparent);">
+                    <div class="stat-label" style="color: var(--color-ssr);">จำนวน SSR มากสุดที่เคยได้ต่อรอบ</div>
+                    <div class="stat-value monospace" id="stat-best-ssr" style="color: var(--color-ssr);">-</div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-label">จำนวน SSR น้อยสุดที่เคยได้ต่อรอบ</div>
+                    <div class="stat-value monospace" id="stat-worst-ssr">-</div>
+                  </div>
+                </div>
+
+                <!-- Highlighted Summary Text -->
+                <div class="insight-box" style="background: color-mix(in oklch, var(--accent2) 8%, transparent); border-left: 4px solid var(--color-primary); border-radius: 4px 8px 8px 4px; padding: 1.25rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
+                  <span style="font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; color: var(--color-primary); display: block; margin-bottom: 0.5rem;">บทสรุปจากการจำลองสถานการณ์</span>
+                  <p id="pov-insight-text" style="margin: 0; font-size: 1.05rem; line-height: 1.5;"></p>
+                </div>
+
+                <!-- SSR distribution histogram -->
+                <div class="inner-card" style="margin-bottom: 1.5rem;">
+                  <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">แผนภูมิความน่าจะเป็นของจำนวน SSR ที่ผู้เล่นจะได้รับ</h3>
+                  <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="pov-chart" style="display: none;"></canvas>
+                    <div id="pov-chart-fallback" style="display: none;"></div>
+                  </div>
+                </div>
+
+                <!-- Export POV Summary -->
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 1.5rem;">
+                  <button id="btn-export-pov" class="btn-secondary">⬇ ดาวน์โหลดบทสรุปมุมมองผู้เล่น (CSV)</button>
+                </div>
+
+              </div>
+
+              <!-- History for Player POV Simulation -->
+              <div class="history-sub-section" style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+                <div class="flex-between" style="margin-bottom: 1.25rem;">
+                  <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">📜 ประวัติการจำลองมุมมองผู้เล่น (10 ครั้งล่าสุด)</h3>
+                  <button id="btn-clear-pov-history" class="btn-danger btn-sm" style="display: flex; align-items: center; gap: 0.3rem;">🗑 ล้างประวัติ</button>
+                </div>
+                <div style="overflow-x: auto;">
+                  <table class="history-table">
+                    <thead>
+                      <tr style="border-bottom: 1px solid var(--border); color: var(--text-dim); text-align: left;">
+                        <th style="padding: 0.6rem 0.75rem;">เวลาจำลอง</th>
+                        <th style="padding: 0.6rem 0.75rem;">งบประมาณ</th>
+                        <th style="padding: 0.6rem 0.75rem;">สิทธิ์สุ่มรวม</th>
+                        <th style="padding: 0.6rem 0.75rem; color: var(--color-success);">โอกาสได้ SSR ≥1 ชิ้น</th>
+                        <th style="padding: 0.6rem 0.75rem;">ค่าเฉลี่ย SSR ที่ได้</th>
+                      </tr>
+                    </thead>
+                    <tbody id="pov-history-tbody">
+                      <!-- Dynamic POV history runs -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State management
+    const state = {
+      rates: { SSR: 1, SR: 9, R: 30, N: 60 },
+      itemPool: {
+        SSR: ['Artemis', 'Aegis', 'Excalibur'],
+        SR: ['Stormbringer', 'Silver Dagger', 'Iron Bow'],
+        R: ['Steel Sword', 'Bronze Shield', 'Magic Wand'],
+        N: ['Rusty Nail', 'Apple', 'Wooden Club']
+      },
+      lastPullResults: [],
+      history: [],
+      povHistory: [],
+      pityEnabled: false,
+      pityCounter: 0,
+      pitySoft: 80,
+      pityHard: 90,
+      lastPovSummary: null
+    };
+
+    // Chart instances references
+    let rarityChartInstance = null;
+    let histogramChartInstance = null;
+
+    // DOM selectors
+    const ratesSSRInput = document.getElementById('rate-ssr');
+    const ratesSRInput = document.getElementById('rate-sr');
+    const ratesRInput = document.getElementById('rate-r');
+    const ratesNInput = document.getElementById('rate-n');
+    
+    // Live validation
+    function validateAll() {
+      const errors = [];
+      
+      // 1. Rates check
+      const ratesSum = state.rates.SSR + state.rates.SR + state.rates.R + state.rates.N;
+      // Precision check (within epsilon float error range)
+      const isRatesValid = Math.abs(ratesSum - 100) < 0.0001;
+      if (!isRatesValid) {
+        errors.push(`⚠ อัตราดรอปรวมทั้งหมดต้องเท่ากับ 100% พอดี (ปัจจุบัน: ${ratesSum.toFixed(2).replace(/\.00$/, '')}%)`);
+      }
+      
+      for (const r of ['SSR', 'SR', 'R', 'N']) {
+        if (state.rates[r] < 0) {
+          errors.push(`⚠ อัตราดรอปของระดับ ${r} ต้องไม่เป็นค่าติดลบ`);
+        }
+      }
+
+      // 2. Item pool check
+      for (const r of ['SSR', 'SR', 'R', 'N']) {
+        if (state.rates[r] > 0 && (!state.itemPool[r] || state.itemPool[r].length === 0)) {
+          errors.push(`⚠ ระดับ ${r} มีอัตราดรอป ${state.rates[r].toFixed(2).replace(/\.00$/, '')}% แต่ยังไม่มีไอเทมในรายการสุ่ม`);
+        }
+      }
+
+      // Check soft/hard pity bounds
+      if (state.pityEnabled) {
+        const softVal = parseInt(document.getElementById('pity-soft').value, 10);
+        const hardVal = parseInt(document.getElementById('pity-hard').value, 10);
+        if (isNaN(softVal) || softVal <= 0) {
+          errors.push("⚠ ระดับ Soft Pity ต้องมีค่าอย่างน้อย 1");
+        }
+        if (isNaN(hardVal) || hardVal <= 0) {
+          errors.push("⚠ ระดับ Hard Pity ต้องมีค่าอย่างน้อย 1");
+        }
+        if (softVal > hardVal) {
+          errors.push("⚠ ระดับ Soft Pity ต้องไม่มากกว่า Hard Pity");
+        }
+      }
+
+      // Update rate error display
+      const rateErrorEl = document.getElementById('rate-settings-error');
+      if (rateErrorEl) {
+        const rateErrors = errors.filter(e => e.includes('อัตราดรอปรวม') || e.includes('ค่าติดลบ') || e.includes('Pity'));
+        rateErrorEl.innerHTML = rateErrors.join('<br>');
+        rateErrorEl.style.display = rateErrors.length > 0 ? 'block' : 'none';
+      }
+
+      // Update pool error display
+      const poolErrorEl = document.getElementById('item-pool-error');
+      if (poolErrorEl) {
+        const poolErrors = errors.filter(e => e.includes('ยังไม่มีไอเทมในรายการสุ่ม'));
+        poolErrorEl.innerHTML = poolErrors.join('<br>');
+        poolErrorEl.style.display = poolErrors.length > 0 ? 'block' : 'none';
+      }
+
+      // 3. Single Simulation inputs validation
+      const singleRollsInput = document.getElementById('single-rolls');
+      const singleCostInput = document.getElementById('single-cost');
+      let singleInputValid = true;
+      const singleErrorEl = document.getElementById('single-sim-error');
+      const singleErrors = [];
+
+      if (singleRollsInput && singleCostInput) {
+        const rolls = parseInt(singleRollsInput.value, 10);
+        const cost = parseFloat(singleCostInput.value);
+        if (isNaN(rolls) || rolls <= 0) {
+          singleErrors.push("⚠ จำนวนการสุ่มต้องไม่ต่ำกว่า 1 ครั้ง");
+          singleInputValid = false;
+        }
+        if (isNaN(cost) || cost < 0) {
+          singleErrors.push("⚠ ค่าใช้จ่ายต่อการสุ่มต้องไม่ติดลบ");
+          singleInputValid = false;
+        }
+        
+        if (singleErrorEl) {
+          singleErrorEl.innerHTML = singleErrors.join('<br>');
+          singleErrorEl.style.display = singleErrors.length > 0 ? 'block' : 'none';
+        }
+      }
+
+      // 4. Player POV inputs validation
+      const povBudgetInput = document.getElementById('pov-budget');
+      const povPriceInput = document.getElementById('pov-price');
+      const povSimsInput = document.getElementById('pov-sims');
+      let povInputValid = true;
+      const povErrorEl = document.getElementById('pov-sim-error');
+      const povErrors = [];
+
+      if (povBudgetInput && povPriceInput && povSimsInput) {
+        const budget = parseFloat(povBudgetInput.value);
+        const price = parseFloat(povPriceInput.value);
+        const sims = parseInt(povSimsInput.value, 10);
+        
+        if (isNaN(budget) || budget <= 0) {
+          povErrors.push("⚠ งบประมาณการสุ่มต้องมากกว่า 0");
+          povInputValid = false;
+        }
+        if (isNaN(price) || price < 0) {
+          povErrors.push("⚠ ราคาต่อการสุ่มต้องไม่ติดลบ");
+          povInputValid = false;
+        }
+        if (isNaN(sims) || sims < 1 || sims > 100000) {
+          povErrors.push("⚠ จำนวนสุ่มจำลองต้องอยู่ระหว่าง 1 ถึง 100,000 รอบ");
+          povInputValid = false;
+        }
+
+        if (povErrorEl) {
+          povErrorEl.innerHTML = povErrors.join('<br>');
+          povErrorEl.style.display = povErrors.length > 0 ? 'block' : 'none';
+        }
+      }
+
+      // Update total rate display text
+      const totalDisplay = document.getElementById('rate-total-display');
+      if (totalDisplay) {
+        totalDisplay.textContent = `เรทรวม: ${ratesSum.toFixed(2).replace(/\.00$/, '')}%`;
+        if (isRatesValid) {
+          totalDisplay.style.color = 'var(--color-success)';
+          totalDisplay.textContent += ' ✓';
+        } else {
+          totalDisplay.style.color = 'var(--color-danger)';
+          totalDisplay.textContent += ' ✗';
+        }
+      }
+
+      // Update topbar total rate display
+      const topbarTotal = document.getElementById('topbar-rate-total');
+      if (topbarTotal) {
+        topbarTotal.textContent = `เรทรวม: ${ratesSum.toFixed(2).replace(/\.00$/, '')}%`;
+        if (isRatesValid) {
+          topbarTotal.parentElement.style.color = 'var(--pos)';
+          topbarTotal.parentElement.style.borderColor = 'color-mix(in oklch, var(--pos) 40%, transparent)';
+          topbarTotal.parentElement.style.background = 'color-mix(in oklch, var(--pos) 8%, transparent)';
+        } else {
+          topbarTotal.parentElement.style.color = 'var(--color-danger)';
+          topbarTotal.parentElement.style.borderColor = 'color-mix(in oklch, var(--color-danger) 40%, transparent)';
+          topbarTotal.parentElement.style.background = 'color-mix(in oklch, var(--color-danger) 8%, transparent)';
+        }
+      }
+
+      // Enable/Disable buttons based on validity
+      const isGlobalValid = isRatesValid && errors.filter(e => e.includes('ยังไม่มีไอเทมในรายการสุ่ม')).length === 0 && errors.filter(e => e.includes('Pity')).length === 0;
+      
+      const startSingleBtn = document.getElementById('btn-start-single');
+      if (startSingleBtn) {
+        startSingleBtn.disabled = !(isGlobalValid && singleInputValid);
+      }
+
+      const startPovBtn = document.getElementById('btn-start-pov');
+      if (startPovBtn) {
+        startPovBtn.disabled = !(isGlobalValid && povInputValid);
+      }
+
+      return { isGlobalValid, singleInputValid, povInputValid };
+    }
+
+    function updateRatesFromInputs() {
+      state.rates.SSR = parseFloat(ratesSSRInput.value) || 0;
+      state.rates.SR = parseFloat(ratesSRInput.value) || 0;
+      state.rates.R = parseFloat(ratesRInput.value) || 0;
+      state.rates.N = parseFloat(ratesNInput.value) || 0;
+      validateAll();
+    }
+
+    // Escape HTML string
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return '';
+      return str.replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+    }
+
+    // Render Item Pool List
+    function renderItemPool() {
+      const tbody = document.getElementById('item-pool-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      
+      let hasItems = false;
+      const rarities = ['SSR', 'SR', 'R', 'N'];
+      
+      rarities.forEach(rarity => {
+        const items = state.itemPool[rarity];
+        items.forEach((item, index) => {
+          hasItems = true;
+          const tr = document.createElement('tr');
+          
+          let badgeColor = '';
+          if (rarity === 'SSR') badgeColor = 'var(--color-ssr)';
+          else if (rarity === 'SR') badgeColor = 'var(--color-sr)';
+          else if (rarity === 'R') badgeColor = 'var(--color-r)';
+          else badgeColor = 'var(--color-n)';
+          
+          tr.innerHTML = `
+            <td>
+              <span class="rarity-badge" style="background-color: ${badgeColor}; box-shadow: ${rarity === 'SSR' ? 'var(--ssr-glow)' : 'none'}">${rarity}</span>
+            </td>
+            <td style="font-weight: 500;">${escapeHtml(item)}</td>
+            <td style="text-align: right; white-space: nowrap;">
+              <button class="btn-sm edit-btn btn-secondary" data-rarity="${rarity}" data-index="${index}" style="margin-right: 4px;">แก้ไข</button>
+              <button class="btn-sm btn-danger delete-btn" data-rarity="${rarity}" data-index="${index}">ลบ</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      });
+      
+      if (!hasItems) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">ยังไม่มีไอเทมในรายการ กรุณากรอกชื่อและเลือกประเภทด้านบนเพื่อเพิ่ม!</td></tr>';
+      }
+    }
+
+    // Edit and cancel helpers
+    function startEdit(rarity, index) {
+      const itemValue = state.itemPool[rarity][index];
+      document.getElementById('item-name-input').value = itemValue;
+      document.getElementById('item-rarity-select').value = rarity;
+      
+      state.editing = { rarity, index };
+      document.getElementById('btn-add-item').textContent = '✓ อัปเดตไอเทม';
+      document.getElementById('btn-cancel-edit').style.display = 'inline-block';
+    }
+
+    // Cancel edit
+    function cancelEdit() {
+      state.editing = null;
+      document.getElementById('item-name-input').value = '';
+      document.getElementById('btn-add-item').textContent = '＋ เพิ่มไอเทม';
+      document.getElementById('btn-cancel-edit').style.display = 'none';
+    }
+
+    // Update current pity UI display
+    function updatePityDisplay() {
+      const display = document.getElementById('current-pity-display');
+      if (display) {
+        display.textContent = `Pity Counter: ${state.pityCounter}`;
+        display.style.display = state.pityEnabled ? 'inline-block' : 'none';
+      }
+      
+      const topbarPity = document.getElementById('topbar-pity-status');
+      if (topbarPity) {
+        if (state.pityEnabled) {
+          topbarPity.textContent = `การันตี: Soft ${state.pitySoft} / Hard ${state.pityHard}`;
+          topbarPity.parentElement.style.color = 'var(--warn)';
+          topbarPity.parentElement.style.borderColor = 'color-mix(in oklch, var(--warn) 40%, transparent)';
+          topbarPity.parentElement.style.background = 'color-mix(in oklch, var(--warn) 8%, transparent)';
+        } else {
+          topbarPity.textContent = 'ระบบการันตี: ปิด';
+          topbarPity.parentElement.style.color = 'var(--text-faint)';
+          topbarPity.parentElement.style.borderColor = 'var(--border)';
+          topbarPity.parentElement.style.background = 'color-mix(in oklch, var(--bg2) 60%, transparent)';
+        }
+      }
+    }
+
+    // Roll Once Logic with Pity implementation
+    function rollOnce(rates, itemPool, pityState = state) {
+      let selectedRarity = null;
+      
+      if (state.pityEnabled) {
+        pityState.pityCounter++;
+        
+        // Check hard pity
+        if (pityState.pityCounter >= state.pityHard) {
+          selectedRarity = 'SSR';
+        } else {
+          let currentSSRRate = rates.SSR;
+          // Soft pity rate increase (add 10% per roll over soft pity threshold)
+          if (pityState.pityCounter >= state.pitySoft) {
+            currentSSRRate = Math.min(100, rates.SSR + (pityState.pityCounter - state.pitySoft + 1) * 10);
+          }
+          
+          const rand = Math.random() * 100;
+          if (rand < currentSSRRate) {
+            selectedRarity = 'SSR';
+          } else {
+            // Distribute remaining rate space amongst SR, R, N proportionally
+            const remainingSum = rates.SR + rates.R + rates.N;
+            const newRemaining = 100 - currentSSRRate;
+            
+            let cumulative = currentSSRRate;
+            const otherRarities = ['SR', 'R', 'N'];
+            for (const rarity of otherRarities) {
+              const rate = remainingSum > 0 ? (rates[rarity] / remainingSum) * newRemaining : 0;
+              cumulative += rate;
+              if (rand < cumulative) {
+                selectedRarity = rarity;
+                break;
+              }
+            }
+          }
+        }
+        
+        // Reset pity counter on SSR pull
+        if (selectedRarity === 'SSR') {
+          pityState.pityCounter = 0;
+        }
+      } else {
+        // EXACT requested standard logic
+        const rand = Math.random() * 100;
+        let cumulative = 0;
+        for (const rarity of ['SSR', 'SR', 'R', 'N']) {
+          cumulative += rates[rarity];
+          if (rand < cumulative) {
+            selectedRarity = rarity;
+            break;
+          }
+        }
+      }
+      
+      if (!selectedRarity) selectedRarity = 'N';
+      
+      const items = itemPool[selectedRarity];
+      return {
+        rarity: selectedRarity,
+        item: items[Math.floor(Math.random() * items.length)]
+      };
+    }
+
+    // Run Single Simulation
+    function runSimulation() {
+      const rollsInput = document.getElementById('single-rolls');
+      const costInput = document.getElementById('single-cost');
+      
+      const rolls = parseInt(rollsInput.value, 10);
+      const costPerRoll = parseFloat(costInput.value);
+      
+      const results = [];
+      let ssrCount = 0;
+      
+      // Temporary state clone to process rolls linearly
+      const pityState = {
+        pityCounter: state.pityCounter
+      };
+      
+      for (let i = 0; i < rolls; i++) {
+        const rolled = rollOnce(state.rates, state.itemPool, pityState);
+        results.push({
+          rollNo: i + 1,
+          rarity: rolled.rarity,
+          item: rolled.item,
+          cost: costPerRoll
+        });
+        if (rolled.rarity === 'SSR') {
+          ssrCount++;
+        }
+      }
+      
+      // Write back updated pity counter to global state
+      state.pityCounter = pityState.pityCounter;
+      state.lastPullResults = results;
+      
+      // Compute statistics
+      const totalCost = rolls * costPerRoll;
+      const rarityCounts = { SSR: 0, SR: 0, R: 0, N: 0 };
+      results.forEach(r => rarityCounts[r.rarity]++);
+      
+      let mostCommon = 'N';
+      let maxCount = -1;
+      for (const key of ['SSR', 'SR', 'R', 'N']) {
+        if (rarityCounts[key] > maxCount) {
+          maxCount = rarityCounts[key];
+          mostCommon = key;
+        }
+      }
+      
+      // Save history run
+      const historyEntry = {
+        timestamp: new Date().toLocaleTimeString(),
+        rolls: rolls,
+        totalCost: totalCost,
+        ssrCount: ssrCount,
+        ssrPercent: ((ssrCount / rolls) * 100).toFixed(2)
+      };
+      state.history.unshift(historyEntry);
+      if (state.history.length > 10) {
+        state.history.pop();
+      }
+      
+      // Update displays
+      renderSingleResults(rarityCounts, results, mostCommon);
+      renderHistory();
+      renderSingleChart(rarityCounts, rolls);
+    }
+
+    // Render Results panel HTML
+    function renderSingleResults(rarityCounts, results, mostCommon) {
+      document.getElementById('stat-total-rolls').textContent = results.length;
+      
+      const totalCost = results.length * parseFloat(document.getElementById('single-cost').value || 0);
+      document.getElementById('stat-total-cost').textContent = `฿${totalCost.toLocaleString()}`;
+      document.getElementById('stat-ssr-count').textContent = rarityCounts.SSR;
+      
+      const ssrStatCard = document.getElementById('card-ssr-count');
+      if (rarityCounts.SSR > 0) {
+        ssrStatCard.classList.add('ssr-glow-card');
+      } else {
+        ssrStatCard.classList.remove('ssr-glow-card');
+      }
+      
+      document.getElementById('stat-most-common').textContent = mostCommon;
+      document.getElementById('stat-most-common').style.color = `var(--color-${mostCommon.toLowerCase()})`;
+      
+      // Result Table
+      const tbody = document.getElementById('single-results-tbody');
+      tbody.innerHTML = '';
+      
+      ['SSR', 'SR', 'R', 'N'].forEach(rarity => {
+        const count = rarityCounts[rarity];
+        const rateSet = state.rates[rarity];
+        const actualPercent = results.length > 0 ? ((count / results.length) * 100).toFixed(2) : '0.00';
+        
+        let color = `var(--color-${rarity.toLowerCase()})`;
+        
+        const tr = document.createElement('tr');
+        tr.style.color = color;
+        tr.innerHTML = `
+          <td style="font-weight: bold; padding: 0.6rem 0.5rem;">
+            <span class="rarity-dot" style="background-color: ${color}"></span>${rarity}
+          </td>
+          <td style="padding: 0.6rem 0.5rem; font-family: var(--mono);">${rateSet.toFixed(2).replace(/\.00$/, '')}%</td>
+          <td style="padding: 0.6rem 0.5rem; font-family: var(--mono);">${count}</td>
+          <td style="padding: 0.6rem 0.5rem; font-family: var(--mono);">${actualPercent}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      
+      // Pulls by Item List
+      const itemCounts = {};
+      results.forEach(r => {
+        if (!itemCounts[r.item]) {
+          itemCounts[r.item] = { count: 0, rarity: r.rarity };
+        }
+        itemCounts[r.item].count++;
+      });
+      
+      const sortedItems = Object.entries(itemCounts).map(([name, data]) => ({
+        name,
+        count: data.count,
+        rarity: data.rarity
+      })).sort((a, b) => b.count - a.count);
+      
+      const itemsContainer = document.getElementById('single-item-results');
+      itemsContainer.innerHTML = '';
+      
+      if (sortedItems.length === 0) {
+        itemsContainer.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 1rem;">ยังไม่มีข้อมูลสุ่มกาชา</div>';
+      } else {
+        sortedItems.forEach(item => {
+          const el = document.createElement('div');
+          el.className = 'item-result-row';
+          
+          let badgeColor = `var(--color-${item.rarity.toLowerCase()})`;
+          
+          el.innerHTML = `
+            <div style="display: flex; align-items: center;">
+              <span class="rarity-badge-sm" style="background-color: ${badgeColor}; box-shadow: ${item.rarity === 'SSR' ? 'var(--ssr-glow)' : 'none'}">${item.rarity}</span>
+              <span style="font-weight: 500;">${escapeHtml(item.name)}</span>
+            </div>
+            <div style="font-family: var(--mono); font-weight: bold; color: var(--color-primary);">${item.count} ครั้ง</div>
+          `;
+          itemsContainer.appendChild(el);
+        });
+      }
+
+      document.getElementById('single-results-panel').style.display = 'block';
+    }
+
+    // Render History table rows
+    function renderHistory() {
+      const tbody = document.getElementById('history-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      
+      if (state.history.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">ยังไม่มีประวัติการจำลองสุ่มปกติ</td></tr>';
+        return;
+      }
+      
+      state.history.forEach((entry, index) => {
+        const tr = document.createElement('tr');
+        if (index === 0) {
+          tr.style.backgroundColor = 'rgba(167, 139, 250, 0.07)';
+          tr.style.borderLeft = '3px solid var(--color-primary)';
+        }
+        
+        tr.innerHTML = `
+          <td style="color: var(--text-dim); font-size: 0.85rem; padding: 0.75rem;">${entry.timestamp}</td>
+          <td style="font-family: var(--mono); padding: 0.75rem;">${entry.rolls}</td>
+          <td style="font-family: var(--mono); padding: 0.75rem;">฿${entry.totalCost.toLocaleString()}</td>
+          <td style="font-family: var(--mono); color: var(--color-ssr); font-weight: bold; padding: 0.75rem;">${entry.ssrCount}</td>
+          <td style="font-family: var(--mono); font-weight: bold; padding: 0.75rem;">${entry.ssrPercent}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Render Player POV History table rows
+    function renderPovHistory() {
+      const tbody = document.getElementById('pov-history-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      
+      if (state.povHistory.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">ยังไม่มีประวัติการจำลองในมุมมองผู้เล่น</td></tr>';
+        return;
+      }
+      
+      state.povHistory.forEach((entry, index) => {
+        const tr = document.createElement('tr');
+        if (index === 0) {
+          tr.style.backgroundColor = 'rgba(167, 139, 250, 0.07)';
+          tr.style.borderLeft = '3px solid var(--color-primary)';
+        }
+        
+        tr.innerHTML = `
+          <td style="color: var(--text-dim); font-size: 0.85rem; padding: 0.75rem;">${entry.timestamp}</td>
+          <td style="font-family: var(--mono); padding: 0.75rem;">฿${entry.budget.toLocaleString()}</td>
+          <td style="font-family: var(--mono); padding: 0.75rem;">${entry.totalRolls}</td>
+          <td style="font-family: var(--mono); color: var(--color-success); font-weight: bold; padding: 0.75rem;">${entry.chanceAtLeastOne}%</td>
+          <td style="font-family: var(--mono); font-weight: bold; padding: 0.75rem;">${entry.avgSSR}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Chart 1 - Rarity Distribution Chart (Chart.js or Fallback)
+    function renderSingleChart(rarityCounts, totalRolls) {
+      const canvas = document.getElementById('rarity-chart');
+      const fallback = document.getElementById('rarity-chart-fallback');
+      
+      if (typeof Chart !== 'undefined') {
+        canvas.style.display = 'block';
+        fallback.style.display = 'none';
+
+        if (rarityChartInstance) {
+          rarityChartInstance.destroy();
+        }
+        
+        rarityChartInstance = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: ['SSR', 'SR', 'R', 'N'],
+            datasets: [
+              {
+                label: 'จำนวนที่ได้จริง',
+                data: [rarityCounts.SSR, rarityCounts.SR, rarityCounts.R, rarityCounts.N],
+                backgroundColor: ['#f59e0b', '#a78bfa', '#38bdf8', '#64748b'],
+                borderRadius: 6,
+                borderWidth: 0
+              },
+              {
+                label: 'จำนวนตามสถิติที่คาดหวัง',
+                data: [
+                  ((state.rates.SSR / 100) * totalRolls),
+                  ((state.rates.SR / 100) * totalRolls),
+                  ((state.rates.R / 100) * totalRolls),
+                  ((state.rates.N / 100) * totalRolls)
+                ],
+                type: 'line',
+                borderColor: '#34d399',
+                borderDash: [5, 5],
+                fill: false,
+                pointBackgroundColor: '#34d399',
+                pointRadius: 4,
+                tension: 0.1
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: '#f1f5f9', font: { family: 'IBM Plex Sans Thai, Inter' } }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: { color: '#94a3b8', font: { family: 'IBM Plex Sans Thai' } }
+              },
+              y: {
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: { color: '#94a3b8', font: { family: 'IBM Plex Sans Thai' } }
+              }
+            }
+          }
+        });
+      } else {
+        canvas.style.display = 'none';
+        fallback.style.display = 'flex';
+        renderRarityCSSFallback(rarityCounts, totalRolls);
+      }
+    }
+
+    function renderRarityCSSFallback(rarityCounts, totalRolls) {
+      const fallback = document.getElementById('rarity-chart-fallback');
+      fallback.innerHTML = '';
+      
+      const expectedSSR = (state.rates.SSR / 100) * totalRolls;
+      const expectedSR = (state.rates.SR / 100) * totalRolls;
+      const expectedR = (state.rates.R / 100) * totalRolls;
+      const expectedN = (state.rates.N / 100) * totalRolls;
+
+      const maxCount = Math.max(
+        rarityCounts.SSR, rarityCounts.SR, rarityCounts.R, rarityCounts.N,
+        expectedSSR, expectedSR, expectedR, expectedN
+      ) || 1;
+
+      const items = [
+        { name: 'SSR', count: rarityCounts.SSR, expected: expectedSSR, color: 'var(--color-ssr)' },
+        { name: 'SR', count: rarityCounts.SR, expected: expectedSR, color: 'var(--color-sr)' },
+        { name: 'R', count: rarityCounts.R, expected: expectedR, color: 'var(--color-r)' },
+        { name: 'N', count: rarityCounts.N, expected: expectedN, color: 'var(--color-n)' }
+      ];
+
+      items.forEach(r => {
+        const actHeight = (r.count / maxCount) * 90; // scale max height
+        const expHeight = (r.expected / maxCount) * 90;
+        
+        const col = document.createElement('div');
+        col.className = 'fallback-col';
+        col.innerHTML = `
+          <div class="fallback-bars-wrapper">
+            <div class="fallback-bar expected" style="height: ${expHeight}%; border-bottom: 2px dashed var(--color-success); position: absolute; width: 100%; bottom: 0; pointer-events: none; z-index: 1;"></div>
+            <div class="fallback-bar actual" style="height: ${actHeight}%; background-color: ${r.color}; width: 100%; border-radius: 4px 4px 0 0;"></div>
+          </div>
+          <div class="fallback-label" style="color: ${r.color}; font-weight: bold; margin-top: 8px; font-size: 0.9rem;">${r.name}</div>
+          <div class="fallback-stats">
+            <div style="font-weight: bold; font-size: 0.95rem;">${r.count}</div>
+            <div style="color: var(--color-success); font-size: 0.72rem;">คาดหวัง: ${Math.round(r.expected)}</div>
+          </div>
+        `;
+        fallback.appendChild(col);
+      });
+    }
+
+    // SECTION 6 - Player POV Simulator calculations
+    function calculateTotalRolls(budget, pricePerRoll, freeRollEnabled, everyX, getsY) {
+      const paidRolls = Math.floor(budget / pricePerRoll);
+      let freeRolls = 0;
+      if (freeRollEnabled && everyX > 0) {
+        freeRolls = Math.floor(paidRolls / everyX) * getsY;
+      }
+      return { paidRolls, freeRolls, totalRolls: paidRolls + freeRolls };
+    }
+
+    function runMonteCarlo(simCount, totalRolls, rates, itemPool) {
+      const results = [];
+      for (let i = 0; i < simCount; i++) {
+        let ssrCount = 0;
+        // Fresh local pity counter for each simulated player session
+        const sessionPity = {
+          pityCounter: 0
+        };
+        for (let r = 0; r < totalRolls; r++) {
+          const result = rollOnce(rates, itemPool, sessionPity);
+          if (result.rarity === 'SSR') ssrCount++;
+        }
+        results.push(ssrCount);
+      }
+      return results;
+    }
+
+    // Run Monte Carlo & probability analysis
+    function runMonteCarloSimulation() {
+      const budgetInput = document.getElementById('pov-budget');
+      const priceInput = document.getElementById('pov-price');
+      const simsInput = document.getElementById('pov-sims');
+      
+      const budget = parseFloat(budgetInput.value);
+      const price = parseFloat(priceInput.value);
+      const sims = parseInt(simsInput.value, 10);
+      
+      const freeRollToggle = document.getElementById('free-roll-toggle');
+      const freeRollEnabled = freeRollToggle.checked;
+      const everyX = parseInt(document.getElementById('free-every-x').value || 10, 10);
+      const getsY = parseInt(document.getElementById('free-gets-y').value || 1, 10);
+      
+      const rollsBreakdown = calculateTotalRolls(budget, price, freeRollEnabled, everyX, getsY);
+      const totalRolls = rollsBreakdown.totalRolls;
+      
+      // Run Monte Carlo
+      const results = runMonteCarlo(sims, totalRolls, state.rates, state.itemPool);
+      
+      // Aggregate probabilities
+      let ssrGe1 = 0;
+      let ssrEq0 = 0;
+      let totalSSR = 0;
+      let bestSSR = -1;
+      let worstSSR = Infinity;
+      
+      results.forEach(val => {
+        if (val >= 1) ssrGe1++;
+        if (val === 0) ssrEq0++;
+        totalSSR += val;
+        if (val > bestSSR) bestSSR = val;
+        if (val < worstSSR) worstSSR = val;
+      });
+      
+      const chanceAtLeastOne = (ssrGe1 / sims) * 100;
+      const chanceZero = (ssrEq0 / sims) * 100;
+      const avgSSR = totalSSR / sims;
+      
+      // Store summary for POV CSV
+      state.lastPovSummary = {
+        budget,
+        pricePerRoll: price,
+        paidRolls: rollsBreakdown.paidRolls,
+        freeRolls: rollsBreakdown.freeRolls,
+        totalRolls,
+        simulations: sims,
+        chanceAtLeastOne: chanceAtLeastOne.toFixed(1),
+        chanceZero: chanceZero.toFixed(1),
+        avgSSR: avgSSR.toFixed(2),
+        bestSSR,
+        worstSSR
+      };
+      
+      // Save POV history run
+      const povHistoryEntry = {
+        timestamp: new Date().toLocaleTimeString(),
+        budget: budget,
+        totalRolls: totalRolls,
+        chanceAtLeastOne: chanceAtLeastOne.toFixed(1),
+        avgSSR: avgSSR.toFixed(2)
+      };
+      state.povHistory.unshift(povHistoryEntry);
+      if (state.povHistory.length > 10) {
+        state.povHistory.pop();
+      }
+      renderPovHistory();
+      
+      // Render Displays
+      document.getElementById('stat-paid-rolls').textContent = rollsBreakdown.paidRolls;
+      document.getElementById('stat-free-rolls').textContent = rollsBreakdown.freeRolls;
+      document.getElementById('stat-total-rolls-pov').textContent = totalRolls;
+      
+      document.getElementById('stat-chance-ge1').textContent = `${chanceAtLeastOne.toFixed(1)}%`;
+      document.getElementById('stat-chance-0').textContent = `${chanceZero.toFixed(1)}%`;
+      document.getElementById('stat-avg-ssr').textContent = avgSSR.toFixed(2);
+      document.getElementById('stat-best-ssr').textContent = bestSSR;
+      document.getElementById('stat-worst-ssr').textContent = worstSSR;
+      
+      // Dynamic Insight text styling
+      let insightText = '';
+      if (freeRollEnabled) {
+        insightText = `ด้วยงบประมาณ ฿${budget.toLocaleString()} ราคาครั้งละ ฿${price} คุณจะได้สิทธิ์สุ่มแบบจ่ายเงิน ${rollsBreakdown.paidRolls} ครั้ง และได้รับสิทธิ์สุ่มฟรีอีก ${rollsBreakdown.freeRolls} ครั้ง รวมเป็นสิทธิ์สุ่มทั้งหมด ${totalRolls} ครั้งต่อหนึ่งรอบสุ่ม สำหรับรอบการจำลองทั้งหมด ${sims.toLocaleString()} รอบสุ่ม พบว่าคุณมีโอกาสถึง ${chanceAtLeastOne.toFixed(1)}% ที่จะได้รับไอเทมระดับ SSR อย่างน้อย 1 ชิ้น`;
+      } else {
+        insightText = `ด้วยงบประมาณ ฿${budget.toLocaleString()} ราคาครั้งละ ฿${price} คุณจะได้สิทธิ์สุ่มทั้งหมด ${rollsBreakdown.paidRolls} ครั้งต่อรอบ สำหรับรอบการจำลองทั้งหมด ${sims.toLocaleString()} รอบสุ่ม พบว่าคุณมีโอกาสถึง ${chanceAtLeastOne.toFixed(1)}% ที่จะได้รับไอเทมระดับ SSR อย่างน้อย 1 ชิ้น`;
+      }
+      document.getElementById('pov-insight-text').textContent = insightText;
+      
+      document.getElementById('pov-results-panel').style.display = 'block';
+      
+      // Render Histogram
+      renderHistogramChart(results, bestSSR);
+    }
+
+    // Chart 2 - Histogram (Chart.js or Fallback)
+    function renderHistogramChart(results, bestSSR) {
+      const canvas = document.getElementById('pov-chart');
+      const fallback = document.getElementById('pov-chart-fallback');
+      
+      // Aggregate distributions
+      const distribution = {};
+      for (let val = 0; val <= bestSSR; val++) {
+        distribution[val] = 0;
+      }
+      results.forEach(count => {
+        distribution[count]++;
+      });
+      
+      const labels = Object.keys(distribution);
+      const chartData = Object.values(distribution);
+      
+      if (typeof Chart !== 'undefined') {
+        canvas.style.display = 'block';
+        fallback.style.display = 'none';
+
+        if (histogramChartInstance) {
+          histogramChartInstance.destroy();
+        }
+        
+        histogramChartInstance = new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels: labels.map(l => `ได้รับ SSR ${l} ชิ้น`),
+            datasets: [{
+              label: 'จำนวนผู้เล่น (รอบจำลอง)',
+              data: chartData,
+              backgroundColor: 'rgba(245, 158, 11, 0.4)',
+              borderColor: '#a78bfa',
+              borderWidth: 2,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: { color: '#f1f5f9', font: { family: 'IBM Plex Sans Thai, Inter' } }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: { color: '#94a3b8', font: { family: 'IBM Plex Sans Thai' } }
+              },
+              y: {
+                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                ticks: { color: '#94a3b8', font: { family: 'IBM Plex Sans Thai' } }
+              }
+            }
+          }
+        });
+      } else {
+        canvas.style.display = 'none';
+        fallback.style.display = 'block';
+        renderHistogramCSSFallback(distribution, results.length);
+      }
+    }
+
+    function renderHistogramCSSFallback(distribution, simCount) {
+      const fallback = document.getElementById('pov-chart-fallback');
+      fallback.innerHTML = '';
+      fallback.style.maxHeight = '250px';
+      fallback.style.overflowY = 'auto';
+      fallback.style.padding = '10px';
+      
+      const maxSims = Math.max(...Object.values(distribution)) || 1;
+      
+      Object.entries(distribution).forEach(([ssrCount, count]) => {
+        const pct = (count / maxSims) * 70;
+        const percentage = ((count / simCount) * 100).toFixed(1);
+        
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.marginBottom = '6px';
+        row.style.fontSize = '0.85rem';
+        
+        row.innerHTML = `
+          <div style="width: 70px; font-family: var(--mono); color: var(--color-ssr); font-weight: bold;">SSR ${ssrCount} ชิ้น</div>
+          <div style="flex-grow: 1; height: 16px; background-color: rgba(255, 255, 255, 0.05); border-radius: 4px; overflow: hidden; margin: 0 10px;">
+            <div style="width: ${pct}%; height: 100%; background: linear-gradient(90deg, rgba(245, 158, 11, 0.6), rgba(167, 139, 250, 0.6)); border-radius: 4px;"></div>
+          </div>
+          <div style="width: 140px; text-align: right; font-family: var(--mono); color: var(--text-dim);">
+            ${count.toLocaleString()} รอบ (${percentage}%)
+          </div>
+        `;
+        fallback.appendChild(row);
+      });
+    }
+
+    // CSV Download helper
+    function downloadCSV(csvContent, filename) {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Export Pull Results CSV
+    function exportPullResultsCSV() {
+      if (state.lastPullResults.length === 0) return;
+      let csvContent = "Roll No,Rarity,Item Name,Cost Per Roll\r\n";
+      state.lastPullResults.forEach(r => {
+        let itemName = r.item.replace(/"/g, '""');
+        if (itemName.includes(',') || itemName.includes('"')) {
+          itemName = `"${itemName}"`;
+        }
+        csvContent += `${r.rollNo},${r.rarity},${itemName},${r.cost}\r\n`;
+      });
+      downloadCSV(csvContent, 'pull_results.csv');
+    }
+
+    // Export Player POV summary CSV
+    function exportPovCSV() {
+      if (!state.lastPovSummary) return;
+      const s = state.lastPovSummary;
+      const headers = "Budget (฿),Price Per Roll (฿),Paid Rolls,Free Rolls,Total Rolls,Simulations,Chance ≥1 SSR (%),Chance 0 SSR (%),Avg SSR Per Sim,Best SSR Count,Worst SSR Count\r\n";
+      const row = `${s.budget},${s.pricePerRoll},${s.paidRolls},${s.freeRolls},${s.totalRolls},${s.simulations},${s.chanceAtLeastOne},${s.chanceZero},${s.avgSSR},${s.bestSSR},${s.worstSSR}\r\n`;
+      downloadCSV(headers + row, 'player_pov_summary.csv');
+    }
+
+    // Bind event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      // Init elements & views
+      renderItemPool();
+      updateRatesFromInputs();
+      renderHistory();
+      renderPovHistory();
+      
+      // Tab switching logic
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetTab = btn.dataset.tab;
+          
+          tabBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          document.querySelectorAll('.tab-content').forEach(content => {
+            if (content.id === `tab-${targetTab}`) {
+              content.style.display = 'block';
+            } else {
+              content.style.display = 'none';
+            }
+          });
+
+          // Resize charts to avoid sizing issues on hidden tabs
+          if (targetTab === 'single-sim' && rarityChartInstance) {
+            rarityChartInstance.resize();
+          } else if (targetTab === 'pov-sim' && histogramChartInstance) {
+            histogramChartInstance.resize();
+          }
+        });
+      });
+
+      // Rates Inputs changes
+      ratesSSRInput.addEventListener('input', updateRatesFromInputs);
+      ratesSRInput.addEventListener('input', updateRatesFromInputs);
+      ratesRInput.addEventListener('input', updateRatesFromInputs);
+      ratesNInput.addEventListener('input', updateRatesFromInputs);
+
+      // Single Simulation inputs validation binding
+      document.getElementById('single-rolls').addEventListener('input', validateAll);
+      document.getElementById('single-cost').addEventListener('input', validateAll);
+
+      // Player POV inputs validation binding
+      document.getElementById('pov-budget').addEventListener('input', validateAll);
+      document.getElementById('pov-price').addEventListener('input', validateAll);
+      document.getElementById('pov-sims').addEventListener('input', validateAll);
+
+      // Add item form submission
+      document.getElementById('item-add-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const nameInput = document.getElementById('item-name-input');
+        const raritySelect = document.getElementById('item-rarity-select');
+        const name = nameInput.value.trim();
+        const rarity = raritySelect.value;
+
+        if (!name) return;
+
+        if (state.editing) {
+          const oldRarity = state.editing.rarity;
+          const oldIndex = state.editing.index;
+          
+          if (oldRarity === rarity) {
+            state.itemPool[rarity][oldIndex] = name;
+          } else {
+            state.itemPool[oldRarity].splice(oldIndex, 1);
+            state.itemPool[rarity].push(name);
+          }
+          cancelEdit();
+        } else {
+          state.itemPool[rarity].push(name);
+          nameInput.value = '';
+        }
+
+        renderItemPool();
+        validateAll();
+      });
+
+      // Cancel edit listener
+      document.getElementById('btn-cancel-edit').addEventListener('click', cancelEdit);
+
+      // Item pool edit/delete delegated listener
+      document.getElementById('item-pool-tbody').addEventListener('click', (e) => {
+        if (e.target.classList.contains('delete-btn')) {
+          const rarity = e.target.dataset.rarity;
+          const index = parseInt(e.target.dataset.index, 10);
+          
+          state.itemPool[rarity].splice(index, 1);
+          
+          if (state.editing && state.editing.rarity === rarity && state.editing.index === index) {
+            cancelEdit();
+          } else if (state.editing && state.editing.rarity === rarity && state.editing.index > index) {
+            state.editing.index--;
+          }
+          
+          renderItemPool();
+          validateAll();
+        } else if (e.target.classList.contains('edit-btn')) {
+          const rarity = e.target.dataset.rarity;
+          const index = parseInt(e.target.dataset.index, 10);
+          startEdit(rarity, index);
+        }
+      });
+
+      // Single simulation trigger
+      document.getElementById('btn-start-single').addEventListener('click', () => {
+        runSimulation();
+        updatePityDisplay();
+      });
+
+      // Export CSV buttons binding
+      document.getElementById('btn-export-pulls').addEventListener('click', exportPullResultsCSV);
+      document.getElementById('btn-export-pov').addEventListener('click', exportPovCSV);
+
+      // Free Rolls toggle logic
+      document.getElementById('free-roll-toggle').addEventListener('change', (e) => {
+        document.getElementById('free-roll-settings-inputs').style.display = e.target.checked ? 'flex' : 'none';
+        validateAll();
+      });
+      document.getElementById('free-every-x').addEventListener('input', validateAll);
+      document.getElementById('free-gets-y').addEventListener('input', validateAll);
+
+      // Pity system toggle & configurations
+      document.getElementById('pity-toggle').addEventListener('change', (e) => {
+        state.pityEnabled = e.target.checked;
+        document.getElementById('pity-settings-inputs').style.display = state.pityEnabled ? 'flex' : 'none';
+        updatePityDisplay();
+        validateAll();
+      });
+      document.getElementById('pity-soft').addEventListener('input', () => {
+        state.pitySoft = parseInt(document.getElementById('pity-soft').value, 10) || 80;
+        validateAll();
+      });
+      document.getElementById('pity-hard').addEventListener('input', () => {
+        state.pityHard = parseInt(document.getElementById('pity-hard').value, 10) || 90;
+        validateAll();
+      });
+
+      // Player POV Trigger
+      document.getElementById('btn-start-pov').addEventListener('click', runMonteCarloSimulation);
+
+      // History clear binding
+      document.getElementById('btn-clear-history').addEventListener('click', () => {
+        state.history = [];
+        renderHistory();
+      });
+
+      // POV History clear binding
+      document.getElementById('btn-clear-pov-history').addEventListener('click', () => {
+        state.povHistory = [];
+        renderPovHistory();
+      });
+
+      // Initial validation validation run
+      validateAll();
+    });
+  </script>
+</body>
+</html>

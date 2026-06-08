@@ -1,0 +1,4665 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player Feedback Intelligence Dashboard · Game Publishing</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- PapaParse for CSV Parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --display: "IBM Plex Sans Thai", "Space Grotesk", system-ui, sans-serif;
+      --body: "IBM Plex Sans Thai", "Manrope", system-ui, sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, monospace;
+      
+      --bg-hue: 250;
+      --accent: oklch(0.82 0.13 195);     /* Cyan */
+      --accent2: oklch(0.72 0.16 292);    /* Purple */
+      --pos: oklch(0.80 0.14 158);        /* Emerald */
+      --warn: oklch(0.84 0.14 78);        /* Amber */
+      --neg: oklch(0.65 0.22 20);         /* Coral Red */
+      
+      --bg: oklch(0.155 0.014 var(--bg-hue));
+      --bg2: oklch(0.185 0.016 var(--bg-hue));
+      --text: oklch(0.96 0.005 var(--bg-hue));
+      --text-dim: oklch(0.74 0.012 var(--bg-hue));
+      --text-faint: oklch(0.56 0.012 var(--bg-hue));
+      --border: oklch(0.72 0.02 var(--bg-hue) / 0.16);
+      --glow: color-mix(in oklch, var(--accent) 50%, transparent);
+      --glow-a: 0.3;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--body);
+      background-color: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 99px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-faint);
+    }
+
+    /* Ambient Background Glow (Exact TabletopAI Style) */
+    .bg-fx {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: -1;
+      pointer-events: none;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: calc(0.18 + var(--glow-a) * 0.5);
+    }
+    .orb-a {
+      width: 520px;
+      height: 520px;
+      background: var(--accent);
+      top: -160px;
+      right: -80px;
+    }
+    .orb-b {
+      width: 480px;
+      height: 480px;
+      background: var(--accent2);
+      bottom: -180px;
+      left: -120px;
+    }
+    .grid-fade {
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 46px 46px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 75%);
+      opacity: 0.5;
+    }
+
+    /* Typography Utilities */
+    .grad-text {
+      background: linear-gradient(92deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    /* Layout Components */
+    .app-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 26px 64px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Topbar Header (TabletopAI Brand Style) */
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 14px 26px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in oklch, var(--bg) 70%, transparent);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      width: 100%;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 18px -4px var(--glow);
+    }
+    .brand-mark i {
+      font-size: 16px;
+    }
+    .brand-name {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      letter-spacing: .02em;
+      white-space: nowrap;
+    }
+    .topbar-config {
+      display: flex;
+      gap: 6px;
+      margin: 0 auto;
+      flex-wrap: wrap;
+    }
+    .topbar-config span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in oklch, var(--bg2) 60%, transparent);
+    }
+    .topbar-config span i {
+      color: var(--accent);
+    }
+    .topbar-right {
+      margin-left: auto;
+    }
+    @media (max-width: 768px) {
+      .topbar-config {
+        display: none;
+      }
+    }
+
+    /* KPI Summary Row */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin-bottom: 35px;
+    }
+
+    .kpi-card {
+      background: color-mix(in oklch, var(--bg2) 78%, transparent);
+      backdrop-filter: blur(20px) saturate(1.2);
+      -webkit-backdrop-filter: blur(20px) saturate(1.2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+    }
+
+    .kpi-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: var(--accent);
+      opacity: 0.8;
+    }
+
+    .kpi-card.pos::before { background: var(--pos); }
+    .kpi-card.neg::before { background: var(--neg); }
+    .kpi-card.warn::before { background: var(--warn); }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px 0 rgba(233, 69, 96, 0.05);
+      border-color: color-mix(in oklch, var(--accent) 35%, transparent);
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-faint);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .kpi-label i {
+      font-size: 13px;
+    }
+
+    .kpi-value {
+      font-size: 30px;
+      font-weight: 700;
+      font-family: var(--mono);
+      margin-bottom: 4px;
+    }
+
+    .kpi-desc {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* Grid Layout */
+    .grid {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 30px;
+      margin-bottom: 35px;
+    }
+
+    @media (max-width: 1024px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Card (TabletopAI Glassmorphism Panel Style) */
+    .card {
+      background: color-mix(in oklch, var(--bg2) 78%, transparent);
+      backdrop-filter: blur(20px) saturate(1.2);
+      -webkit-backdrop-filter: blur(20px) saturate(1.2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+    }
+
+    .card-title {
+      font-family: var(--display);
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-title i {
+      color: var(--accent);
+      filter: drop-shadow(0 0 4px var(--glow));
+    }
+
+    /* Executive Summary List */
+    .exec-summary p {
+      font-size: 14.5px;
+      margin-bottom: 15px;
+      color: var(--text-dim);
+    }
+    .exec-summary ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+    .exec-summary li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+    .exec-summary li::before {
+      content: "✓";
+      color: var(--pos);
+      position: absolute;
+      left: 0;
+      font-weight: bold;
+    }
+
+    /* Chart Containers */
+    .chart-container {
+      position: relative;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* Top Issues Styling */
+    .issue-item {
+      display: flex;
+      gap: 16px;
+      background: color-mix(in oklch, var(--bg) 50%, transparent);
+      border: 1px solid var(--border);
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+      transition: all 0.2s ease;
+    }
+
+    .issue-item:hover {
+      background: color-mix(in oklch, var(--bg) 90%, transparent);
+      border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+    }
+
+    .issue-number {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: color-mix(in oklch, var(--accent) 13%, transparent);
+      border: 1px solid color-mix(in oklch, var(--accent) 26%, transparent);
+      color: var(--accent);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-family: var(--mono);
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .issue-content h4 {
+      font-family: var(--display);
+      font-size: 14.5px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .issue-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-faint);
+      font-family: var(--mono);
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .issue-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .issue-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    /* Recommended Actions Section */
+    .team-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 640px) {
+      .team-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .team-card {
+      background: color-mix(in oklch, var(--bg) 50%, transparent);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .team-card h4 {
+      font-family: var(--display);
+      font-size: 13.5px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+
+    .team-card h4 i {
+      color: var(--accent);
+    }
+
+    .team-card ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+
+    .team-card li {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      position: relative;
+      padding-left: 12px;
+      line-height: 1.5;
+    }
+
+    .team-card li::before {
+      content: "•";
+      color: var(--accent);
+      position: absolute;
+      left: 0;
+      font-weight: bold;
+    }
+
+    /* Risk Flags Section */
+    .risk-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .risk-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .risk-icon {
+      color: var(--neg);
+      font-size: 16px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .risk-content h4 {
+      font-family: var(--display);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .risk-content p {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      line-height: 1.4;
+    }
+
+    /* Appendix Table Styling */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 15px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background: color-mix(in oklch, var(--bg2) 90%, transparent);
+      padding: 12px 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 600;
+      color: var(--text-faint);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    th:hover {
+      background: color-mix(in oklch, var(--bg2) 100%, var(--accent) 15%) !important;
+      color: var(--text) !important;
+    }
+
+    .sort-icon {
+      margin-left: 6px;
+      font-size: 12px;
+      color: var(--text-faint);
+      vertical-align: middle;
+      transition: color 0.2s;
+    }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-dim);
+      vertical-align: middle;
+    }
+
+    tr:hover td {
+      background: color-mix(in oklch, var(--bg) 20%, transparent);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: var(--mono);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge.badge-neg { color: var(--neg); background: color-mix(in oklch, var(--neg) 12%, transparent); border: 1px solid color-mix(in oklch, var(--neg) 25%, transparent); }
+    .badge.badge-pos { color: var(--pos); background: color-mix(in oklch, var(--pos) 12%, transparent); border: 1px solid color-mix(in oklch, var(--pos) 25%, transparent); }
+    .badge.badge-neu { color: var(--text-dim); background: color-mix(in oklch, var(--text-faint) 12%, transparent); border: 1px solid color-mix(in oklch, var(--text-faint) 25%, transparent); }
+
+    .badge.badge-high { color: var(--neg); background: color-mix(in oklch, var(--neg) 8%, transparent); }
+    .badge.badge-med { color: var(--warn); background: color-mix(in oklch, var(--warn) 8%, transparent); }
+    .badge.badge-low { color: var(--pos); background: color-mix(in oklch, var(--pos) 8%, transparent); }
+
+    /* Buttons */
+    .ghost-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      background: color-mix(in oklch, var(--bg2) 50%, transparent);
+      transition: .18s;
+      text-decoration: none;
+    }
+    .ghost-btn:hover {
+      color: var(--text);
+      border-color: color-mix(in oklch, var(--accent) 40%, transparent);
+    }
+
+    /* Footer Styling */
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      margin-top: 48px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      font-family: var(--mono);
+      color: var(--text-faint);
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .footer-left {
+      max-width: 70%;
+      line-height: 1.5;
+    }
+    
+    @media (max-width: 768px) {
+      .footer-left {
+        max-width: 100%;
+        text-align: center;
+      }
+      footer {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+
+    /* Table Controls (TabletopAI Inspired) */
+    .table-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 20px;
+      align-items: center;
+      padding-top: 10px;
+    }
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: color-mix(in oklch, var(--bg2) 60%, transparent);
+      flex: 1;
+      min-width: 250px;
+    }
+    .search-box i {
+      color: var(--text-faint);
+    }
+    .search-box input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 13.5px;
+      width: 100%;
+    }
+    .search-box input::placeholder {
+      color: var(--text-faint);
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .filter-group label {
+      font-size: 11px;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      color: var(--text-faint);
+      white-space: nowrap;
+    }
+    .chips {
+      display: flex;
+      gap: 6px;
+    }
+    .chip {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      background: color-mix(in oklch, var(--bg2) 50%, transparent);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: var(--body);
+    }
+    .chip:hover {
+      color: var(--text);
+      border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+    }
+    .chip.active {
+      color: var(--accent);
+      border-color: color-mix(in oklch, var(--accent) 40%, transparent);
+      background: color-mix(in oklch, var(--accent) 12%, transparent);
+    }
+    
+    /* Pagination */
+    .pagination-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 15px;
+      border-top: 1px solid var(--border);
+    }
+    #page-info {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    
+    @media (max-width: 768px) {
+      .table-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .filter-group {
+        justify-content: space-between;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient FX -->
+  <div class="bg-fx">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="grid-fade"></div>
+  </div>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <i class="fa-solid fa-chart-column"></i>
+      </div>
+      <div>
+        <div class="brand-name">Player Feedback <span class="grad-text">Intelligence</span></div>
+        <div class="brand-sub" style="display: flex; align-items: center; gap: 8px;">
+          <span>Game Publishing Analytical Suite</span>
+          <span id="sync-status" style="font-size: 9px; color: var(--text-faint); display: inline-flex; align-items: center; gap: 4px;">
+            <i class="fa-solid fa-circle-notch fa-spin" style="color: var(--accent);"></i> กำลังซิงค์...
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-config">
+      <span>
+        <i class="fa-solid fa-comments"></i>
+        300 ฟีดแบ็ก
+      </span>
+      <span>
+        <i class="fa-solid fa-face-frown" style="color: var(--neg);"></i>
+        Negative 93%
+      </span>
+      <span>
+        <i class="fa-solid fa-triangle-exclamation" style="color: var(--warn);"></i>
+        High Priority 28%
+      </span>
+      <span>
+        <i class="fa-solid fa-calendar-days"></i>
+        2026-05-01 - 2026-05-23
+      </span>
+    </div>
+    <div class="topbar-right">
+      <a href="#feedback-table" class="ghost-btn">
+        <i class="fa-solid fa-table"></i>
+        <span>ดูตารางฟีดแบ็ก</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="app-container">
+
+    <!-- KPI Summary Row (TabletopAI Styled Panels) -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">
+          <span>ฟีดแบ็กผู้เล่นทั้งหมด</span>
+          <i class="fa-solid fa-comments" style="color: var(--accent);"></i>
+        </div>
+        <div class="kpi-value">300</div>
+        <div class="kpi-desc">ข้อมูลจริงจาก Google Sheets ประมวลผลล่าสุด</div>
+      </div>
+      <div class="kpi-card neg">
+        <div class="kpi-label">
+          <span>สัดส่วนความรู้สึกแง่ลบ (Negative)</span>
+          <i class="fa-solid fa-face-frown" style="color: var(--neg);"></i>
+        </div>
+        <div class="kpi-value" style="color: var(--neg);">92.7%</div>
+        <div class="kpi-desc">278 รายการ ร้องเรียนสมดุลเกม บั๊ก และการฟาร์ม</div>
+      </div>
+      <div class="kpi-card warn">
+        <div class="kpi-label">
+          <span>ระดับความสำคัญสูง (High Priority)</span>
+          <i class="fa-solid fa-triangle-exclamation" style="color: var(--warn);"></i>
+        </div>
+        <div class="kpi-value" style="color: var(--warn);">27.7%</div>
+        <div class="kpi-desc">83 รายการ ต้องรับการแก้ปัญหารีบด่วน</div>
+      </div>
+      <div class="kpi-card pos">
+        <div class="kpi-label">
+          <span>ความพึงพอใจแง่บวก (Positive)</span>
+          <i class="fa-solid fa-face-smile" style="color: var(--pos);"></i>
+        </div>
+        <div class="kpi-value" style="color: var(--pos);">7.3%</div>
+        <div class="kpi-desc">22 รายการ ชื่นชมกราฟิก เพลง และมินิเกม</div>
+      </div>
+    </div>
+
+    <!-- Main Grid Layout -->
+    <div class="grid">
+      
+      <!-- LEFT COLUMN -->
+      <div class="left-column">
+        
+        <!-- Section 1: Executive Summary -->
+        <div class="card">
+          <div class="card-title">
+            <i class="fa-solid fa-bullseye"></i>
+            <h2>Executive Summary (สรุปสาระสำคัญสำหรับผู้บริหาร)</h2>
+          </div>
+          <div class="exec-summary" id="dynamic-exec-summary">
+            <!-- ข้อมูลจะถูกคำนวณและแสดงผลแบบไดนามิกด้วย JavaScript -->
+          </div>
+        </div>
+
+        <!-- Section 3: Top 5 Issues -->
+        <div class="card">
+          <div class="card-title">
+            <i class="fa-solid fa-list-check"></i>
+            <h2>Top 5 Issues (by Frequency - 5 ปัญหาสำคัญที่สุดตามความถี่)</h2>
+          </div>
+          
+          <div id="dynamic-top-issues">
+            <!-- ข้อมูล Top Issues จะถูกคำนวณและสร้างจากข้อมูลจริงแบบไดนามิก -->
+          </div>
+
+        </div>
+
+        <!-- Section 5: Recommended Actions -->
+        <div class="card">
+          <div class="card-title">
+            <i class="fa-solid fa-clipboard-list"></i>
+            <h2>Recommended Actions (ข้อเสนอแนะแยกตามทีมปฏิบัติงาน)</h2>
+          </div>
+          <div class="team-grid" id="dynamic-recommended-actions">
+            <!-- ข้อเสนอแนะจะถูกคำนวณแยกตาม Suggested Owner จริงแบบไดนามิก -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div class="right-column">
+        
+        <!-- Section 2: Sentiment Overview -->
+        <div class="card">
+          <div class="card-title">
+            <i class="fa-solid fa-face-smile-wink"></i>
+            <h2>Sentiment Overview (ความพึงพอใจ)</h2>
+          </div>
+          <div class="chart-container" style="height: 250px; margin-bottom: 20px;">
+            <canvas id="sentimentChart"></canvas>
+          </div>
+          <div style="font-size: 13px; color: var(--text-dim); border-top: 1px solid var(--border); padding-top: 15px;" id="dynamic-sentiment-summary-text">
+            <!-- คำอธิบาย Sentiment จะถูกแสดงผลแบบไดนามิกตามข้อมูลจริง -->
+          </div>
+        </div>
+
+        <!-- Section 4: Category Breakdown -->
+        <div class="card">
+          <div class="card-title">
+            <i class="fa-solid fa-chart-pie"></i>
+            <h2>Category Breakdown (จำแนกตามหมวดหมู่)</h2>
+          </div>
+          <div class="chart-container" style="height: 300px;">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Priority Breakdown -->
+        <div class="card">
+          <div class="card-title">
+            <i class="fa-solid fa-bars-progress"></i>
+            <h2>Priority Distribution (ความสำคัญของปัญหา)</h2>
+          </div>
+          <div class="chart-container" style="height: 250px;">
+            <canvas id="priorityChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Section 6: Risk Flags -->
+        <div class="card">
+          <div class="card-title">
+            <i class="fa-solid fa-triangle-exclamation" style="color: var(--neg);"></i>
+            <h2>Risk Flags (การประเมินความเสี่ยงร้ายแรง)</h2>
+          </div>
+          
+          <div id="dynamic-risk-flags">
+            <!-- ความเสี่ยงจะถูกประเมินจากข้อมูลและสัดส่วนจริงแบบไดนามิก -->
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Section: Appendix (Sample Feedback Quotes) -->
+    <div class="card" id="feedback-table">
+      <div class="card-title">
+        <i class="fa-solid fa-quote-left"></i>
+        <h2>ภาคผนวก (Appendix) — ข้อมูลฟีดแบ็กจริงจากผู้เล่นทั้งหมด</h2>
+      </div>
+      
+      <!-- Interactive Table Controls (TabletopAI Inspired) -->
+      <div class="table-controls">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="table-search" placeholder="ค้นหาฟีดแบ็ก, ไอดี, หรือหมายเหตุ...">
+        </div>
+        <div class="filter-group">
+          <label>Sentiment:</label>
+          <div class="chips" id="sentiment-chips">
+            <button class="chip active" data-filter="All">ทั้งหมด</button>
+            <button class="chip" data-filter="Positive">Positive</button>
+            <button class="chip" data-filter="Neutral">Neutral</button>
+            <button class="chip" data-filter="Negative">Negative</button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <label>ความสำคัญ:</label>
+          <div class="chips" id="priority-chips">
+            <button class="chip active" data-filter="All">ทั้งหมด</button>
+            <button class="chip" data-filter="High">High</button>
+            <button class="chip" data-filter="Medium">Medium</button>
+            <button class="chip" data-filter="Low">Low</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort="feedback_id" style="width: 80px;">ไอดี <i class="fa-solid fa-sort sort-icon"></i></th>
+              <th data-sort="ai_summary" style="width: 380px;">สรุปฟีดแบ็กของผู้เล่น (ai_summary) <i class="fa-solid fa-sort sort-icon"></i></th>
+              <th data-sort="sentiment" style="width: 100px;">Sentiment <i class="fa-solid fa-sort sort-icon"></i></th>
+              <th data-sort="category" style="width: 150px;">หมวดหมู่ (Category) <i class="fa-solid fa-sort sort-icon"></i></th>
+              <th data-sort="priority" style="width: 90px;">ความสำคัญ <i class="fa-solid fa-sort sort-icon"></i></th>
+              <th data-sort="suggested_owner" style="width: 140px;">ผู้รับผิดชอบ <i class="fa-solid fa-sort sort-icon"></i></th>
+              <th data-sort="note" style="width: 300px;">หมายเหตุการรีวิว (Note) <i class="fa-solid fa-sort sort-icon"></i></th>
+            </tr>
+          </thead>
+          <tbody id="feedback-tbody">
+            <!-- Dynamic Rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Controls -->
+      <div class="pagination-controls">
+        <button id="prev-page-btn" class="ghost-btn" disabled><i class="fa-solid fa-chevron-left"></i> ย้อนกลับ</button>
+        <span id="page-info">หน้า 1 จาก 20</span>
+        <button id="next-page-btn" class="ghost-btn">ถัดไป <i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-left">
+        <strong>กระบวนการสร้างรายงานและตรวจสอบคุณภาพข้อมูล:</strong><br>
+        Workflow: Raw Feedback (Google Sheets) → AI Classification (Claude/Gemini) → Manual Validation (10% sample) → Insight Summary → HTML Report
+      </div>
+      <div>
+        <span>© 2026 Game Publishing Division. All rights reserved.</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Charts & Data Script -->
+  <script>
+    // --- Google Sheets Feedback Data ---
+    const feedbackData = [
+  {
+    "feedback_id": "FB-001",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "โรลกาชาหลายสิบครั้งไม่ได้ตัว rate up",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 5 ครั้ง — ความไม่มั่นใจใน rate up ส่งผลต่อ trust และ retention"
+  },
+  {
+    "feedback_id": "FB-002",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "Event ธีมน่ารักแต่ภารกิจซ้ำมากเกินไป",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "ภารกิจซ้ำลด engagement — ควรออกแบบ mission ให้หลากหลายขึ้น"
+  },
+  {
+    "feedback_id": "FB-003",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "พบซ้ำ 8 ครั้ง — one-shot mechanic กระทบ F2P player โดยตรง"
+  },
+  {
+    "feedback_id": "FB-004",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "ชื่นชอบตัวละครใหม่ ดีไซน์และสกิลน่าเล่น",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — ทีม design ควรรักษาคุณภาพระดับนี้"
+  },
+  {
+    "feedback_id": "FB-005",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ replay ดูการต่อสู้ย้อนหลัง",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Feature ที่ช่วยเพิ่ม engagement และ skill improvement"
+  },
+  {
+    "feedback_id": "FB-006",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "แต้มเควสต์รายสัปดาห์ไม่พอแลกของหลัก",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "พบซ้ำ 7 ครั้ง — point economy ไม่สมดุล กระทบ weekly loop"
+  },
+  {
+    "feedback_id": "FB-007",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 11 ครั้ง — Whale-F2P gap ใน ranking กระทบ participation rate"
+  },
+  {
+    "feedback_id": "FB-008",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้ทั้งที่ power ถึง",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "พบซ้ำ 10 ครั้ง — AI logic บกพร่อง ส่งผลต่อ auto-farm efficiency"
+  },
+  {
+    "feedback_id": "FB-009",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "อัปเดตกราฟิกดีขึ้นมาก ฉากต่อสู้สวยงาม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — visual upgrade ได้รับการตอบรับดี"
+  },
+  {
+    "feedback_id": "FB-010",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ตัวหนังสือรายละเอียดสกิลเล็กเกิน อ่านยากบนมือถือ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 7 ครั้ง — Accessibility issue กระทบ mobile player ทุกกลุ่ม"
+  },
+  {
+    "feedback_id": "FB-011",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "แจ้งเตือนสีแดงเยอะเกิน ไม่รู้ว่าอะไรสำคัญจริง",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 5 ครั้ง — Notification fatigue ลด attention ต่อ important alert"
+  },
+  {
+    "feedback_id": "FB-012",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ replay ดูการต่อสู้ย้อนหลัง",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Feature ที่ช่วยเพิ่ม engagement และ skill improvement"
+  },
+  {
+    "feedback_id": "FB-013",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "ราคา item ใน Event Shop สูงเกินสำหรับผู้เล่นใหม่",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "New player barrier — Event Shop pricing ควรมี tier ราคา"
+  },
+  {
+    "feedback_id": "FB-014",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทรัพยากรฟรีน้อยมาก ไม่เติมเงินตามคนอื่นไม่ทัน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "F2P gap กว้าง — อาจทำให้ F2P player เลิกเล่น"
+  },
+  {
+    "feedback_id": "FB-015",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "Event ธีมน่ารักแต่ภารกิจซ้ำมากเกินไป",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "ภารกิจซ้ำลด engagement — ควรออกแบบ mission ให้หลากหลายขึ้น"
+  },
+  {
+    "feedback_id": "FB-016",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "UI ใหม่สะอาดและใช้งานง่ายกว่าเดิม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — UI update ได้รับการตอบรับดี ควรรักษาทิศทางนี้"
+  },
+  {
+    "feedback_id": "FB-017",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "รางวัลรายวันน้อยไม่คุ้มกับเวลาที่ลงทุน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "พบซ้ำ 6 ครั้ง — Daily reward ไม่จูงใจ อาจลด daily login rate"
+  },
+  {
+    "feedback_id": "FB-018",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "โหลดแพตช์ช้ากว่าปกติมากทั้งที่เน็ตปกติ",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — Patch download optimization ต้องปรับปรุง"
+  },
+  {
+    "feedback_id": "FB-019",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้ทั้งที่ power ถึง",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ส่งผลต่อ auto-farm efficiency โดยตรง"
+  },
+  {
+    "feedback_id": "FB-020",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "ราคา item ใน Event Shop สูงเกินสำหรับผู้เล่นใหม่",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "New player barrier — Event Shop pricing ควรมี tier ราคา"
+  },
+  {
+    "feedback_id": "FB-021",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "one-shot mechanic กระทบ F2P player — ควรเพิ่ม damage cap"
+  },
+  {
+    "feedback_id": "FB-022",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Guild Boss ให้ทุกคนช่วยกันตี",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "พบซ้ำ 6 ครั้ง — Guild content เพิ่ม social bonding และ retention"
+  },
+  {
+    "feedback_id": "FB-023",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "พบซ้ำ 11 ครั้ง — Meta concentration ลด diversity และ fun ของ PvP"
+  },
+  {
+    "feedback_id": "FB-024",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "one-shot mechanic ไม่แฟร์ — ควรปรับ boss damage scaling"
+  },
+  {
+    "feedback_id": "FB-025",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ระบบกรอง Inventory ไม่ละเอียด หา item ยาก",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 3 ครั้ง — Filter system อ่อนแอ กระทบ item management"
+  },
+  {
+    "feedback_id": "FB-026",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Medium",
+    "ai_summary": "ขอเพิ่มเสียงพากย์ภาษาไทยหรือ subtitle ให้ครบ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Localization request — Thai voice/subtitle เพิ่ม immersion สำหรับ Thai market"
+  },
+  {
+    "feedback_id": "FB-027",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Whale-F2P gap ใน ranking — ควรมี bracket แยกตาม spending"
+  },
+  {
+    "feedback_id": "FB-028",
+    "sentiment": "Negative",
+    "category": "Account / Payment",
+    "priority": "High",
+    "ai_summary": "ล็อกอินผ่าน Facebook ไม่ได้ตั้งแต่เมื่อวาน",
+    "suggested_owner": "Customer Support",
+    "confidence": "High",
+    "note": "Critical bug — Login ไม่ได้ทำให้เสียโอกาสเล่นและรายได้"
+  },
+  {
+    "feedback_id": "FB-029",
+    "sentiment": "Negative",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "อยากได้ skin ฟรีจาก Event ไม่ใช่ซื้ออย่างเดียว",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Cosmetic reward จาก event เพิ่ม F2P satisfaction"
+  },
+  {
+    "feedback_id": "FB-030",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "พบซ้ำ 8 ครั้ง — Upgrade material bottleneck ส่งผลต่อ progression rate"
+  },
+  {
+    "feedback_id": "FB-031",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "Event รอบนี้ดึงดูดให้กลับมาเล่นทุกวัน",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Event design ประสบความสำเร็จในการ re-engage player"
+  },
+  {
+    "feedback_id": "FB-032",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "พบซ้ำ 9 ครั้ง — Audio bug กระทบ experience — ต้องการ hotfix"
+  },
+  {
+    "feedback_id": "FB-033",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอตัวละครสายซัพพอร์ตเพิ่ม ปัจจุบันมีแต่ดาเมจ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 6 ครั้ง — Character role imbalance กระทบ team-building diversity"
+  },
+  {
+    "feedback_id": "FB-034",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Whale-F2P gap ใน ranking กระทบ participation rate"
+  },
+  {
+    "feedback_id": "FB-035",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "Tutorial เร็วเกินไป อธิบายระบบไม่ทัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 7 ครั้ง — Tutorial UX ไม่ดี กระทบ new player retention"
+  },
+  {
+    "feedback_id": "FB-036",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "เงื่อนไข pity ไม่ชัดเจน อ่านแล้วงง",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 6 ครั้ง — Pity system ไม่โปร่งใส ลด trust ใน gacha"
+  },
+  {
+    "feedback_id": "FB-037",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่าน Story Chapter ยากเกินไปสำหรับมือใหม่",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike กระทบ new player — ควรมี ramp-up ที่นุ่มนวลกว่า"
+  },
+  {
+    "feedback_id": "FB-038",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "โปรโมชันน่าซื้อแต่หน้า Shop อธิบายสิทธิ์ไม่ชัด",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "Medium",
+    "note": "Shop UX ไม่ชัดเจน — อาจทำให้พลาด conversion แม้ผู้เล่นสนใจ"
+  },
+  {
+    "feedback_id": "FB-039",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Upgrade material bottleneck รุนแรง — ส่งผลต่อ progression rate"
+  },
+  {
+    "feedback_id": "FB-040",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Whale-F2P gap ใน ranking กระทบ event participation"
+  },
+  {
+    "feedback_id": "FB-041",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "Mini game ใน Event สนุก เล่นง่ายไม่เครียด",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Mini game format ได้รับการตอบรับดี ควรทำซ้ำ"
+  },
+  {
+    "feedback_id": "FB-042",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "ของแจกครบรอบดีเกินคาด รู้สึกว่าเกมใส่ใจผู้เล่น",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Anniversary reward สร้าง goodwill กับ player base"
+  },
+  {
+    "feedback_id": "FB-043",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ค่าพลังที่แนะนำในด่านไม่ตรงกับความยากจริง",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "พบซ้ำ 3 ครั้ง — Recommended power ไม่ accurate กระทบ player planning"
+  },
+  {
+    "feedback_id": "FB-044",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "Tutorial เร็วเกินไป อธิบายระบบมากจนจำไม่ทัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Tutorial UX ไม่ดี — New player retention risk"
+  },
+  {
+    "feedback_id": "FB-045",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike สำหรับ new player — ควรมี difficulty scaling"
+  },
+  {
+    "feedback_id": "FB-046",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "Tutorial เร็วเกินไป อธิบายระบบมากจนจำไม่ทัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Tutorial UX ไม่ดี — New player retention risk"
+  },
+  {
+    "feedback_id": "FB-047",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ค่าพลังที่แนะนำในด่านไม่ตรงกับความยากจริง",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Recommended power ไม่ accurate — กระทบ player expectation"
+  },
+  {
+    "feedback_id": "FB-048",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "เนื้อเรื่อง Event สนุกแต่อยากให้มีเสียงพากย์เพิ่ม",
+    "suggested_owner": "Event Team",
+    "confidence": "Medium",
+    "note": "Event story quality ดี — เพิ่ม voice acting จะเพิ่ม immersion"
+  },
+  {
+    "feedback_id": "FB-049",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "Mini game ใน Event สนุก เล่นง่ายไม่เครียด",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Mini game format ประสบความสำเร็จ"
+  },
+  {
+    "feedback_id": "FB-050",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "การแจ้งเตือนเควสต์ขึ้นซ้ำทั้งที่เคลียร์ไปแล้ว",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "พบซ้ำ 5 ครั้ง — Quest notification bug สร้าง confusion"
+  },
+  {
+    "feedback_id": "FB-051",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ส่งผลต่อ auto-farm efficiency"
+  },
+  {
+    "feedback_id": "FB-052",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "กิจกรรมใช้ stamina เยอะแต่ของแลกไม่คุ้ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — Stamina cost vs reward ไม่สมดุล"
+  },
+  {
+    "feedback_id": "FB-053",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "ภารกิจ Event บังคับเล่นซ้ำหลายรอบ รู้สึก grind",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — Grind loop ทำให้ player burn out"
+  },
+  {
+    "feedback_id": "FB-054",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "การแจ้งเตือนสีแดงมากเกินไป ไม่รู้อันไหนสำคัญ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Notification priority system ไม่ดี — ลด signal-to-noise ratio"
+  },
+  {
+    "feedback_id": "FB-055",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "โรลกาชาหลายสิบครั้งไม่ได้ตัว rate up",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Rate up ไม่โปร่งใส — ส่งผลต่อ trust และ willingness to spend"
+  },
+  {
+    "feedback_id": "FB-056",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "แต้มเควสต์รายสัปดาห์ไม่พอแลกของหลัก",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Weekly quest point economy ไม่สมดุล — ควรปรับ point value"
+  },
+  {
+    "feedback_id": "FB-057",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "เมนู Gacha Banner หาเจอยาก ต้องกดหลายขั้นตอน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Navigation depth มากเกิน — ลด friction ในการเข้าถึง gacha"
+  },
+  {
+    "feedback_id": "FB-058",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "Tutorial เร็วเกินไป อธิบายระบบมากจนจำไม่ทัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Tutorial UX ไม่ดี — New player retention risk"
+  },
+  {
+    "feedback_id": "FB-059",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "ระยะเวลา Event สั้นเกิน คนทำงานตามไม่ทัน",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 3 ครั้ง — Event duration กระทบ working player participation"
+  },
+  {
+    "feedback_id": "FB-060",
+    "sentiment": "Neutral",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "ขอปฏิทิน Event ล่วงหน้าเพื่อวางแผนทรัพยากร",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 8 ครั้ง — Event calendar ช่วย player planning และเพิ่ม anticipation"
+  },
+  {
+    "feedback_id": "FB-061",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "แพ็กเกจเติมเงินราคาสูงมาก เพชรที่ได้ไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 7 ครั้ง — Package value proposition ต่ำ กระทบ conversion rate"
+  },
+  {
+    "feedback_id": "FB-062",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "ภารกิจ Event บังคับเล่นซ้ำหลายรอบ รู้สึก grind",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Grind loop ทำให้ player burn out — ปรับ mission diversity"
+  },
+  {
+    "feedback_id": "FB-063",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "ระบบ pity ไม่ชัดเจน อ่านเงื่อนไขแล้วงง",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Pity system ไม่โปร่งใส — ควรอธิบายอย่างชัดเจนใน UI"
+  },
+  {
+    "feedback_id": "FB-064",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "โปรโมชันดีแต่หน้า Shop อธิบายสิทธิ์ไม่ชัด",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "Medium",
+    "note": "Shop UX ไม่ชัดเจน — อาจทำให้พลาด conversion"
+  },
+  {
+    "feedback_id": "FB-065",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ปุ่มย้อนกลับพาออกไปหน้าแรก เสียเวลามาก",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — Navigation flow บกพร่อง สร้าง friction ในการใช้งาน"
+  },
+  {
+    "feedback_id": "FB-066",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ส่งผลต่อ auto-farm"
+  },
+  {
+    "feedback_id": "FB-067",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "หลังอัปเดตรู้สึกว่าเกม pay to win มากขึ้น",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "พบซ้ำ 5 ครั้ง — P2W perception เพิ่มขึ้น กระทบ F2P retention"
+  },
+  {
+    "feedback_id": "FB-068",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "โปรโมชันดีแต่หน้า Shop อธิบายสิทธิ์ไม่ชัด",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "Medium",
+    "note": "Shop UX ไม่ชัดเจน — อาจทำให้พลาด conversion"
+  },
+  {
+    "feedback_id": "FB-069",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "พบซ้ำ 9 ครั้ง — Performance bug ในด่านสำคัญ กระทบ experience โดยตรง"
+  },
+  {
+    "feedback_id": "FB-070",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอปุ่ม Claim All สำหรับรับรางวัลหลายรายการพร้อมกัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — QoL improvement ที่ลด friction และเพิ่ม daily efficiency"
+  },
+  {
+    "feedback_id": "FB-071",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทองขาดตลอด อัปเกรดตัวละครแทบไม่ได้",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — Gold economy ไม่สมดุล กระทบ character progression"
+  },
+  {
+    "feedback_id": "FB-072",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "แต้มเควสต์รายสัปดาห์ไม่พอแลกของหลัก",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Weekly quest economy ไม่สมดุล — ควรปรับ point value"
+  },
+  {
+    "feedback_id": "FB-073",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Ranking gap — ควรแบ่ง tier ตาม spending หรือ power"
+  },
+  {
+    "feedback_id": "FB-074",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug กระทบ experience — ต้องการ hotfix"
+  },
+  {
+    "feedback_id": "FB-075",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "อัปเดตกราฟิกดีขึ้นมาก ฉากต่อสู้สวยงาม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Visual update ได้รับ feedback ดี"
+  },
+  {
+    "feedback_id": "FB-076",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "UI ใหม่สะอาดและใช้งานง่ายกว่าเดิม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — UI improvement ได้รับการตอบรับดีจากผู้เล่น"
+  },
+  {
+    "feedback_id": "FB-077",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug — restart workaround ไม่สะดวก ต้องการ fix"
+  },
+  {
+    "feedback_id": "FB-078",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกมค้างตอนเข้าหน้า Story Chapter หลังอัปเดต",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Post-update crash — Critical bug ต้องการ hotfix ทันที"
+  },
+  {
+    "feedback_id": "FB-079",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละคร Kai แรงเกินไป เจอใน Arena แทบไม่มีทางสู้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Single character dominance — กระทบ Arena diversity"
+  },
+  {
+    "feedback_id": "FB-080",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "การแจ้งเตือนเควสต์ขึ้นซ้ำทั้งที่เคลียร์ไปแล้ว",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Quest notification bug — สร้าง confusion และ distrust"
+  },
+  {
+    "feedback_id": "FB-081",
+    "sentiment": "Neutral",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "ขอปฏิทิน Event ล่วงหน้าเพื่อวางแผนทรัพยากร",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event calendar ช่วย player planning และเพิ่ม anticipation"
+  },
+  {
+    "feedback_id": "FB-082",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Performance bug รุนแรง — กระทบ combat experience โดยตรง"
+  },
+  {
+    "feedback_id": "FB-083",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Ranking gap ระหว่าง spender และ F2P — ลด participation"
+  },
+  {
+    "feedback_id": "FB-084",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "ระยะเวลา Event สั้นเกิน คนทำงานตามไม่ทัน",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event duration กระทบ working player — ควรยืดหรือมี catch-up mechanic"
+  },
+  {
+    "feedback_id": "FB-085",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "One-shot mechanic ไม่แฟร์ — ควรปรับ boss damage scaling"
+  },
+  {
+    "feedback_id": "FB-086",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ตัวหนังสือรายละเอียดสกิลเล็กเกิน อ่านยากบนมือถือ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Accessibility issue — Mobile font size ต้องการ responsive design"
+  },
+  {
+    "feedback_id": "FB-087",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Ranking gap กระทบ casual player participation"
+  },
+  {
+    "feedback_id": "FB-088",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ส่งผลต่อ auto-farm efficiency"
+  },
+  {
+    "feedback_id": "FB-089",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "ได้ตัวซ้ำบ่อย ระบบแลกชิ้นส่วนยังไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 2 ครั้ง — Duplicate protection ไม่เพียงพอ กระทบ gacha value"
+  },
+  {
+    "feedback_id": "FB-090",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "แต้มเควสต์รายสัปดาห์ไม่พอแลกของหลัก",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Weekly quest economy ไม่สมดุล — ควรปรับ point ratio"
+  },
+  {
+    "feedback_id": "FB-091",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration — ลด PvP diversity และ fun"
+  },
+  {
+    "feedback_id": "FB-092",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทองขาดตลอด อัปเกรดตัวละครแทบไม่ได้",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Gold economy ไม่สมดุล — กระทบ character progression อย่างจริงจัง"
+  },
+  {
+    "feedback_id": "FB-093",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "พบซ้ำ 7 ครั้ง — Weapon balance disparity กระทบ equipment diversity"
+  },
+  {
+    "feedback_id": "FB-094",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอตัวละครสายซัพพอร์ตเพิ่ม ปัจจุบันมีแต่ดาเมจ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Character role diversity — Support class จำเป็นสำหรับ team building"
+  },
+  {
+    "feedback_id": "FB-095",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Ranking gap — ควรมี bracket แยก tier"
+  },
+  {
+    "feedback_id": "FB-096",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่าน Story Chapter ยากเกินไปสำหรับมือใหม่",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Story difficulty spike — กระทบ new player progression"
+  },
+  {
+    "feedback_id": "FB-097",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "โปรโมชันดีแต่หน้า Shop อธิบายสิทธิ์ไม่ชัด",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "Medium",
+    "note": "Shop description ไม่ชัด — อาจทำให้พลาด conversion"
+  },
+  {
+    "feedback_id": "FB-098",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ส่งผลต่อ auto-farm"
+  },
+  {
+    "feedback_id": "FB-099",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "One-shot mechanic ไม่แฟร์ — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-100",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Weapon balance disparity — กระทบ equipment choice diversity"
+  },
+  {
+    "feedback_id": "FB-101",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทรัพยากรฟรีน้อยมาก ไม่เติมเงินตามคนอื่นไม่ทัน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "F2P gap รุนแรง — อาจทำให้ F2P player เลิกเล่น"
+  },
+  {
+    "feedback_id": "FB-102",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug — ต้องการ patch fix"
+  },
+  {
+    "feedback_id": "FB-103",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอ stat เปรียบเทียบก่อน/หลังเปลี่ยนอุปกรณ์ตอนจัดทีม",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — QoL feature ช่วย informed decision ในการ build team"
+  },
+  {
+    "feedback_id": "FB-104",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ปุ่มย้อนกลับพาออกไปหน้าแรก เสียเวลามาก",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Navigation flow บกพร่อง — สร้าง friction ในการใช้งาน"
+  },
+  {
+    "feedback_id": "FB-105",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "Banner ใหม่ออกถี่มาก เก็บเพชรไม่ทันเลย",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 2 ครั้ง — Banner frequency สูง กระทบ resource accumulation"
+  },
+  {
+    "feedback_id": "FB-106",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "Event ธีมน่ารักแต่ภารกิจซ้ำมากเกินไป",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Mission repetition ลด engagement — ควรหลากหลายขึ้น"
+  },
+  {
+    "feedback_id": "FB-107",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่าน Story Chapter ยากเกินไปสำหรับมือใหม่",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Story difficulty spike กระทบ new player — ควร tune"
+  },
+  {
+    "feedback_id": "FB-108",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug กระทบ experience — ต้องการ patch fix"
+  },
+  {
+    "feedback_id": "FB-109",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "โหลดแพตช์ช้ากว่าปกติมากทั้งที่เน็ตปกติ",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Patch download ช้า — CDN หรือ compression ต้องปรับปรุง"
+  },
+  {
+    "feedback_id": "FB-110",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Performance bug รุนแรง — กระทบ combat experience"
+  },
+  {
+    "feedback_id": "FB-111",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Weapon balance disparity — กระทบ equipment diversity"
+  },
+  {
+    "feedback_id": "FB-112",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "หลังอัปเดตรู้สึกว่าเกม pay to win มากขึ้น",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "P2W perception เพิ่มขึ้น — กระทบ long-term F2P retention"
+  },
+  {
+    "feedback_id": "FB-113",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละคร Rex แรงเกินไป เจอใน Arena แทบไม่มีทางสู้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Single character dominance ใน Arena — ต้องการ nerf patch"
+  },
+  {
+    "feedback_id": "FB-114",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอตัวละครสายซัพพอร์ตเพิ่ม ปัจจุบันมีแต่ดาเมจ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Support class จำเป็น — ขาด role diversity ในการ build team"
+  },
+  {
+    "feedback_id": "FB-115",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "ระบบ pity ไม่ชัดเจน อ่านเงื่อนไขแล้วงง",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Pity system ไม่โปร่งใส — ควร communicate อย่างชัดเจน"
+  },
+  {
+    "feedback_id": "FB-116",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Low",
+    "ai_summary": "รางวัล Login รอบนี้ธรรมดา อยากได้เพชรหรือ ticket เพิ่ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "พบซ้ำ 7 ครั้ง — Login reward ไม่น่าสนใจ อาจลด daily retention"
+  },
+  {
+    "feedback_id": "FB-117",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ตัวหนังสือรายละเอียดสกิลเล็กเกิน อ่านยากบนมือถือ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Accessibility issue — Mobile font size ต้องปรับ"
+  },
+  {
+    "feedback_id": "FB-118",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "One-shot mechanic ไม่แฟร์ — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-119",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "เนื้อเรื่อง Event สนุกแต่อยากให้มีเสียงพากย์เพิ่ม",
+    "suggested_owner": "Event Team",
+    "confidence": "Medium",
+    "note": "Event story quality ดี — Voice acting จะเพิ่ม immersion"
+  },
+  {
+    "feedback_id": "FB-120",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ปุ่มย้อนกลับพาออกไปหน้าแรก เสียเวลามาก",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Navigation flow บกพร่อง — สร้าง friction"
+  },
+  {
+    "feedback_id": "FB-121",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Weapon balance disparity — กระทบ equipment choice"
+  },
+  {
+    "feedback_id": "FB-122",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "การแจ้งเตือนเควสต์ขึ้นซ้ำทั้งที่เคลียร์ไปแล้ว",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Quest notification bug — สร้าง confusion"
+  },
+  {
+    "feedback_id": "FB-123",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "การแจ้งเตือนเควสต์ขึ้นซ้ำทั้งที่เคลียร์ไปแล้ว",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Quest notification bug — ต้องการ fix"
+  },
+  {
+    "feedback_id": "FB-124",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Preset ทีมหลายชุดสลับลงด่านได้ง่าย",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Team preset feature — ลด friction ในการสลับ team composition"
+  },
+  {
+    "feedback_id": "FB-125",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Upgrade material bottleneck รุนแรง — กระทบ progression rate"
+  },
+  {
+    "feedback_id": "FB-126",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ระบบกรอง Inventory ไม่ละเอียด หา item ยาก",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Filter system อ่อนแอ — กระทบ item management experience"
+  },
+  {
+    "feedback_id": "FB-127",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "โหลดแพตช์ช้ากว่าปกติมากทั้งที่เน็ตปกติ",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Patch download ช้า — ต้องปรับ CDN หรือ compression"
+  },
+  {
+    "feedback_id": "FB-128",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Performance bug — กระทบ combat experience"
+  },
+  {
+    "feedback_id": "FB-129",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "โปรโมชันดีแต่หน้า Shop อธิบายสิทธิ์ไม่ชัด",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "Medium",
+    "note": "Shop UX ไม่ชัดเจน — อาจทำให้พลาด conversion"
+  },
+  {
+    "feedback_id": "FB-130",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Weapon balance disparity กระทบ equipment diversity"
+  },
+  {
+    "feedback_id": "FB-131",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ค่าพลังที่แนะนำในด่านไม่ตรงกับความยากจริง",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Recommended power ไม่ accurate — กระทบ player planning"
+  },
+  {
+    "feedback_id": "FB-132",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration — ลด PvP diversity"
+  },
+  {
+    "feedback_id": "FB-133",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "หลังอัปเดตรู้สึกว่าเกม pay to win มากขึ้น",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "P2W perception เพิ่มขึ้น — กระทบ F2P retention"
+  },
+  {
+    "feedback_id": "FB-134",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "โรลกาชาหลายสิบครั้งไม่ได้ตัว rate up",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Rate up ไม่โปร่งใส — ส่งผลต่อ trust"
+  },
+  {
+    "feedback_id": "FB-135",
+    "sentiment": "Neutral",
+    "category": "Gacha / Monetization",
+    "priority": "Low",
+    "ai_summary": "ขอ preview animation ทดลองตัวละครก่อนเปิดกาชา",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "พบซ้ำ 4 ครั้ง — Preview ช่วย informed purchase decision"
+  },
+  {
+    "feedback_id": "FB-136",
+    "sentiment": "Negative",
+    "category": "Account / Payment",
+    "priority": "High",
+    "ai_summary": "ระบบ Customer Support ตอบช้ามากยังไม่ได้คำตอบ",
+    "suggested_owner": "Customer Support",
+    "confidence": "High",
+    "note": "CS responsiveness ต่ำ — กระทบ trust และ player satisfaction"
+  },
+  {
+    "feedback_id": "FB-137",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Guild Boss ให้ทุกคนช่วยกันตี",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Guild Boss เพิ่ม social bonding และ guild retention"
+  },
+  {
+    "feedback_id": "FB-138",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอปุ่ม Claim All สำหรับรับรางวัลหลายรายการพร้อมกัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Claim All QoL — ลด repetitive tap และเพิ่ม efficiency"
+  },
+  {
+    "feedback_id": "FB-139",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Upgrade material bottleneck — กระทบ progression อย่างจริงจัง"
+  },
+  {
+    "feedback_id": "FB-140",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration ใน PvP — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-141",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "หลังอัปเดตรู้สึกว่าเกม pay to win มากขึ้น",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "P2W perception เพิ่มขึ้น — อาจเสีย F2P player base"
+  },
+  {
+    "feedback_id": "FB-142",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug — ต้องการ hotfix"
+  },
+  {
+    "feedback_id": "FB-143",
+    "sentiment": "Neutral",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "ขอปฏิทิน Event ล่วงหน้าเพื่อวางแผนทรัพยากร",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event calendar ช่วย player planning และเพิ่ม anticipation"
+  },
+  {
+    "feedback_id": "FB-144",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "โหลดแพตช์ช้ากว่าปกติมากทั้งที่เน็ตปกติ",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Patch download ช้า — ต้องปรับปรุง download optimization"
+  },
+  {
+    "feedback_id": "FB-145",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Replay ดูการต่อสู้ย้อนหลัง",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Replay feature เพิ่ม engagement และ skill learning"
+  },
+  {
+    "feedback_id": "FB-146",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "UI ใหม่สะอาดและใช้งานง่ายกว่าเดิม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — UI improvement ได้รับ feedback ดี"
+  },
+  {
+    "feedback_id": "FB-147",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Performance bug รุนแรง — กระทบ combat experience"
+  },
+  {
+    "feedback_id": "FB-148",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "Event ธีมน่ารักแต่ภารกิจซ้ำมากเกินไป",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Mission repetition ลด engagement — ปรับ mission design"
+  },
+  {
+    "feedback_id": "FB-149",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike สำหรับ new player — ควร tune"
+  },
+  {
+    "feedback_id": "FB-150",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration ใน PvP — กระทบ diversity"
+  },
+  {
+    "feedback_id": "FB-151",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration — ลด fun ของ PvP"
+  },
+  {
+    "feedback_id": "FB-152",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Low",
+    "ai_summary": "รางวัล Login รอบนี้ธรรมดา อยากได้เพชรหรือ ticket เพิ่ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Login reward ไม่น่าสนใจ — อาจลด daily login rate"
+  },
+  {
+    "feedback_id": "FB-153",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ส่งผลต่อ auto-farm efficiency"
+  },
+  {
+    "feedback_id": "FB-154",
+    "sentiment": "Neutral",
+    "category": "Account / Payment",
+    "priority": "Medium",
+    "ai_summary": "ขอระบบตรวจประวัติการเติมเงินในเกม",
+    "suggested_owner": "Customer Support",
+    "confidence": "Medium",
+    "note": "พบซ้ำ 2 ครั้ง — Payment history เพิ่ม transparency และ trust"
+  },
+  {
+    "feedback_id": "FB-155",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Low",
+    "ai_summary": "รางวัล Login รอบนี้ธรรมดา อยากได้เพชรหรือ ticket เพิ่ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Login reward ไม่น่าสนใจ — ลด daily retention"
+  },
+  {
+    "feedback_id": "FB-156",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "เนื้อเรื่อง Event สนุกแต่อยากให้มีเสียงพากย์เพิ่ม",
+    "suggested_owner": "Event Team",
+    "confidence": "Medium",
+    "note": "Event story quality ดี — Voice acting จะเพิ่ม immersion"
+  },
+  {
+    "feedback_id": "FB-157",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug — ต้องการ patch fix"
+  },
+  {
+    "feedback_id": "FB-158",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "Mini game ใน Event สนุก เล่นง่ายไม่เครียด",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Mini game format ได้รับ feedback ดี"
+  },
+  {
+    "feedback_id": "FB-159",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละครสายฮีลอ่อนมากเมื่อเทียบกับดาเมจบอส",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "พบซ้ำ 6 ครั้ง — Healer role อ่อนมาก — กระทบ team viability"
+  },
+  {
+    "feedback_id": "FB-160",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกมค้างตอนเข้าหน้า Guild หลังอัปเดต",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Post-update crash — ต้องการ hotfix ทันที"
+  },
+  {
+    "feedback_id": "FB-161",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "เพลงในแผนที่ใหม่ดีมาก เปิดฟังเพลิน",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Audio/BGM quality ได้รับ feedback ดี"
+  },
+  {
+    "feedback_id": "FB-162",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Low",
+    "ai_summary": "รางวัล Login รอบนี้ธรรมดา อยากได้เพชรหรือ ticket เพิ่ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Login reward ไม่น่าสนใจ — อาจลด daily login rate"
+  },
+  {
+    "feedback_id": "FB-163",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละครสายฮีลอ่อนมากเมื่อเทียบกับดาเมจบอส",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Healer role อ่อนมาก — ต้องการ buff healer หรือ nerf boss damage"
+  },
+  {
+    "feedback_id": "FB-164",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "การแจ้งเตือนสีแดงมากเกินไป ไม่รู้อันไหนสำคัญ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Notification priority system ไม่ดี — ลด signal-to-noise ratio"
+  },
+  {
+    "feedback_id": "FB-165",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration — ลด PvP diversity และ fun"
+  },
+  {
+    "feedback_id": "FB-166",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละครสายฮีลอ่อนมากเมื่อเทียบกับดาเมจบอส",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Healer role อ่อนมาก — กระทบ team composition viability"
+  },
+  {
+    "feedback_id": "FB-167",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกมเด้งออกบ่อยตอนกลางคืน โดยเฉพาะเปลี่ยนแผนที่",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Crash bug ช่วงกลางคืน — อาจเกี่ยวกับ server load management"
+  },
+  {
+    "feedback_id": "FB-168",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละครสายฮีลอ่อนมากเมื่อเทียบกับดาเมจบอส",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Healer role อ่อนมาก — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-169",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "หลังอัปเดตรู้สึกว่าเกม pay to win มากขึ้น",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "P2W perception เพิ่มขึ้น — กระทบ long-term F2P retention"
+  },
+  {
+    "feedback_id": "FB-170",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "UI ใหม่สะอาดและใช้งานง่ายกว่าเดิม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — UI improvement ได้รับการตอบรับดี"
+  },
+  {
+    "feedback_id": "FB-171",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ตัวหนังสือรายละเอียดสกิลเล็กเกิน อ่านยากบนมือถือ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Accessibility issue — Font size ต้องปรับสำหรับ mobile"
+  },
+  {
+    "feedback_id": "FB-172",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอตัวละครสายซัพพอร์ตเพิ่ม ปัจจุบันมีแต่ดาเมจ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Support class จำเป็น — ขาด role diversity"
+  },
+  {
+    "feedback_id": "FB-173",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug — ต้องการ patch fix"
+  },
+  {
+    "feedback_id": "FB-174",
+    "sentiment": "Neutral",
+    "category": "Account / Payment",
+    "priority": "Medium",
+    "ai_summary": "ขอระบบตรวจประวัติการเติมเงินในเกม",
+    "suggested_owner": "Customer Support",
+    "confidence": "Medium",
+    "note": "Payment history เพิ่ม transparency และ trust ใน spending"
+  },
+  {
+    "feedback_id": "FB-175",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "Event ใช้ stamina รวมกับด่านปกติ บังคับต้องเลือก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "พบซ้ำ 4 ครั้ง — Stamina sharing ลด player freedom ในการ farm"
+  },
+  {
+    "feedback_id": "FB-176",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Ranking gap — ควรมี bracket แยก tier"
+  },
+  {
+    "feedback_id": "FB-177",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike กระทบ new player — ควรมี difficulty scaling"
+  },
+  {
+    "feedback_id": "FB-178",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Ranking gap กระทบ casual player participation"
+  },
+  {
+    "feedback_id": "FB-179",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "กดรับรางวัลแล้ว loading นาน สุดท้ายของไม่เข้า inventory",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Critical bug — ของหายกระทบ trust โดยตรง ต้องการ fix + compensation"
+  },
+  {
+    "feedback_id": "FB-180",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Guild Boss ให้ทุกคนช่วยกันตี",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Guild Boss เพิ่ม social engagement และ guild retention"
+  },
+  {
+    "feedback_id": "FB-181",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "Tutorial เร็วเกินไป อธิบายระบบมากจนจำไม่ทัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Tutorial UX ไม่ดี — New player retention risk"
+  },
+  {
+    "feedback_id": "FB-182",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทรัพยากรฟรีน้อยมาก ไม่เติมเงินตามคนอื่นไม่ทัน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "F2P gap รุนแรง — อาจทำให้ F2P player เลิกเล่น"
+  },
+  {
+    "feedback_id": "FB-183",
+    "sentiment": "Negative",
+    "category": "Account / Payment",
+    "priority": "High",
+    "ai_summary": "ล็อกอินผ่าน Facebook ไม่ได้ตั้งแต่เมื่อวาน",
+    "suggested_owner": "Customer Support",
+    "confidence": "High",
+    "note": "Critical bug — Login ไม่ได้กระทบ session และรายได้"
+  },
+  {
+    "feedback_id": "FB-184",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "โปรโมชันดีแต่หน้า Shop อธิบายสิทธิ์ไม่ชัด",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "Medium",
+    "note": "Shop UX ไม่ชัดเจน — อาจทำให้พลาด conversion"
+  },
+  {
+    "feedback_id": "FB-185",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "ระยะเวลา Event สั้นเกิน คนทำงานตามไม่ทัน",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event duration ไม่เพียงพอ — กระทบ working player"
+  },
+  {
+    "feedback_id": "FB-186",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "หน้าจอ Daily Mission แสดงผลเพี้ยน ปุ่มทับกัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "UI render bug — กระทบ daily mission usability บน small screen"
+  },
+  {
+    "feedback_id": "FB-187",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอตัวละครสายซัพพอร์ตเพิ่ม ปัจจุบันมีแต่ดาเมจ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Support class จำเป็น — ขาด role diversity ใน roster"
+  },
+  {
+    "feedback_id": "FB-188",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "Event ใช้ stamina รวมกับด่านปกติ บังคับต้องเลือก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Stamina sharing ลด player freedom ในการ farm"
+  },
+  {
+    "feedback_id": "FB-189",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "แพ็กเกจเติมเงินราคาสูงมาก เพชรที่ได้ไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Package value ต่ำ — กระทบ conversion rate และ spending willingness"
+  },
+  {
+    "feedback_id": "FB-190",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละคร Luna แรงเกินไป เจอใน Arena แทบไม่มีทางสู้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Single character dominance ใน Arena — ต้องการ nerf"
+  },
+  {
+    "feedback_id": "FB-191",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "One-shot mechanic ไม่แฟร์ — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-192",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอปุ่ม Claim All สำหรับรับรางวัลหลายรายการพร้อมกัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Claim All QoL — ลด repetitive tap"
+  },
+  {
+    "feedback_id": "FB-193",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ต้องการ skill priority fix"
+  },
+  {
+    "feedback_id": "FB-194",
+    "sentiment": "Neutral",
+    "category": "Gacha / Monetization",
+    "priority": "Low",
+    "ai_summary": "ขอ preview animation ทดลองตัวละครก่อนเปิดกาชา",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "Preview ช่วย informed purchase — อาจเพิ่ม pull rate"
+  },
+  {
+    "feedback_id": "FB-195",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — กระทบ auto-farm efficiency"
+  },
+  {
+    "feedback_id": "FB-196",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "เมนู Mail Box หาเจอยาก ต้องกดหลายขั้นตอน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Navigation depth — Mail Box ควรอยู่ใน quick access"
+  },
+  {
+    "feedback_id": "FB-197",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "เนื้อเรื่อง Event สนุกแต่อยากให้มีเสียงพากย์เพิ่ม",
+    "suggested_owner": "Event Team",
+    "confidence": "Medium",
+    "note": "Event story quality ดี — Voice acting จะเพิ่ม immersion"
+  },
+  {
+    "feedback_id": "FB-198",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ระบบกรอง Inventory ไม่ละเอียด หา item ยาก",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Filter system อ่อนแอ — กระทบ item management"
+  },
+  {
+    "feedback_id": "FB-199",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "เพลงในแผนที่ใหม่ดีมาก เปิดฟังเพลิน",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — BGM quality ได้รับ feedback ดี"
+  },
+  {
+    "feedback_id": "FB-200",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "ระบบ pity ไม่ชัดเจน อ่านเงื่อนไขแล้วงง",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Pity system ไม่โปร่งใส — ควร communicate อย่างชัดเจน"
+  },
+  {
+    "feedback_id": "FB-201",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "ระบบ pity ไม่ชัดเจน อ่านเงื่อนไขแล้วงง",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Pity system ไม่โปร่งใส — ลด trust ใน gacha"
+  },
+  {
+    "feedback_id": "FB-202",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "อัปเดตกราฟิกดีขึ้นมาก ฉากต่อสู้สวยงาม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Visual quality upgrade ได้รับการตอบรับดี"
+  },
+  {
+    "feedback_id": "FB-203",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike กระทบ new player progression"
+  },
+  {
+    "feedback_id": "FB-204",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Upgrade material bottleneck — กระทบ progression rate"
+  },
+  {
+    "feedback_id": "FB-205",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่าน Story Chapter ยากเกินไปสำหรับมือใหม่",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Story difficulty กระทบ new player — ควรมี ramp-up ที่ดีกว่า"
+  },
+  {
+    "feedback_id": "FB-206",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "เสียง effect หายหลังจบการต่อสู้ ต้อง restart",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Audio bug — ต้องการ patch fix"
+  },
+  {
+    "feedback_id": "FB-207",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "ทีมงานตอบปัญหา community เร็วมาก ขอบคุณ",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — CS responsiveness ดีมาก ควรรักษาระดับนี้"
+  },
+  {
+    "feedback_id": "FB-208",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ตัวหนังสือรายละเอียดสกิลเล็กเกิน อ่านยากบนมือถือ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Accessibility issue — Font size ต้องปรับ"
+  },
+  {
+    "feedback_id": "FB-209",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "หน้าจอ Mail Box แสดงผลเพี้ยน ปุ่มทับกันบนจอเล็ก",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "UI render bug — กระทบ Mail Box usability บน small screen"
+  },
+  {
+    "feedback_id": "FB-210",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Weapon balance disparity — กระทบ equipment diversity"
+  },
+  {
+    "feedback_id": "FB-211",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอ stat เปรียบเทียบก่อน/หลังเปลี่ยนอุปกรณ์ตอนจัดทีม",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Stat comparison QoL — ช่วย informed decision ในการ build"
+  },
+  {
+    "feedback_id": "FB-212",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "เนื้อเรื่อง Event สนุกแต่อยากให้มีเสียงพากย์เพิ่ม",
+    "suggested_owner": "Event Team",
+    "confidence": "Medium",
+    "note": "Event story quality ดี — Voice acting จะเพิ่ม immersion"
+  },
+  {
+    "feedback_id": "FB-213",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอโหมด Co-op เล่นกับเพื่อนแบบจริงจัง",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "พบซ้ำ 2 ครั้ง — Co-op mode เพิ่ม social value และ retention"
+  },
+  {
+    "feedback_id": "FB-214",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "Banner ใหม่ออกถี่มาก เก็บเพชรไม่ทันเลย",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Banner frequency สูง — กระทบ resource accumulation"
+  },
+  {
+    "feedback_id": "FB-215",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "โรลกาชาหลายสิบครั้งไม่ได้ตัว rate up",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Rate up ไม่โปร่งใส — ส่งผลต่อ trust และ spending willingness"
+  },
+  {
+    "feedback_id": "FB-216",
+    "sentiment": "Neutral",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "ขอปฏิทิน Event ล่วงหน้าเพื่อวางแผนทรัพยากร",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event calendar ช่วย planning และเพิ่ม anticipation"
+  },
+  {
+    "feedback_id": "FB-217",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "UI ใหม่สะอาดและใช้งานง่ายกว่าเดิม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — UI improvement ได้รับการตอบรับดี"
+  },
+  {
+    "feedback_id": "FB-218",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Medium",
+    "ai_summary": "ขอเพิ่มเสียงพากย์ภาษาไทยหรือ subtitle ให้ครบ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Thai localization request — สำคัญสำหรับ Thai market engagement"
+  },
+  {
+    "feedback_id": "FB-219",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละครสายฮีลอ่อนมากเมื่อเทียบกับดาเมจบอส",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Healer role อ่อนมาก — กระทบ team viability"
+  },
+  {
+    "feedback_id": "FB-220",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทองขาดตลอด อัปเกรดตัวละครแทบไม่ได้",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Gold economy ไม่สมดุล — กระทบ character progression"
+  },
+  {
+    "feedback_id": "FB-221",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "Event ใช้ stamina รวมกับด่านปกติ บังคับต้องเลือก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Stamina sharing ลด player freedom ในการ farm"
+  },
+  {
+    "feedback_id": "FB-222",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "หน้าจอ Event Shop แสดงผลเพี้ยน ปุ่มทับกัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "UI render bug — กระทบ Event Shop usability"
+  },
+  {
+    "feedback_id": "FB-223",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "การแจ้งเตือนเควสต์ขึ้นซ้ำทั้งที่เคลียร์ไปแล้ว",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Quest notification bug — สร้าง confusion"
+  },
+  {
+    "feedback_id": "FB-224",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Guild Boss ให้ทุกคนช่วยกันตี",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Guild Boss เพิ่ม social bonding และ retention"
+  },
+  {
+    "feedback_id": "FB-225",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike กระทบ new player — ควร tune"
+  },
+  {
+    "feedback_id": "FB-226",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอปุ่ม Claim All สำหรับรับรางวัลหลายรายการพร้อมกัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Claim All QoL — ลด repetitive tap"
+  },
+  {
+    "feedback_id": "FB-227",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Performance bug — กระทบ combat experience"
+  },
+  {
+    "feedback_id": "FB-228",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "ภารกิจ Event บังคับเล่นซ้ำหลายรอบ รู้สึก grind",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Grind loop ทำให้ player burn out — ปรับ mission design"
+  },
+  {
+    "feedback_id": "FB-229",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Performance bug รุนแรง — กระทบ combat experience"
+  },
+  {
+    "feedback_id": "FB-230",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "เนื้อเรื่อง Event สนุกแต่อยากให้มีเสียงพากย์เพิ่ม",
+    "suggested_owner": "Event Team",
+    "confidence": "Medium",
+    "note": "Event story quality ดี — Voice acting จะเพิ่ม immersion"
+  },
+  {
+    "feedback_id": "FB-231",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอตัวละครสายซัพพอร์ตเพิ่ม ปัจจุบันมีแต่ดาเมจ",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Support class จำเป็น — ขาด role diversity ใน roster"
+  },
+  {
+    "feedback_id": "FB-232",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ตัวหนังสือรายละเอียดสกิลเล็กเกิน อ่านยากบนมือถือ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Accessibility issue — Font size ต้องปรับ"
+  },
+  {
+    "feedback_id": "FB-233",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทรัพยากรฟรีน้อยมาก ไม่เติมเงินตามคนอื่นไม่ทัน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "F2P gap กว้าง — อาจทำให้ F2P player เลิกเล่น"
+  },
+  {
+    "feedback_id": "FB-234",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "Mini game ใน Event สนุก เล่นง่ายไม่เครียด",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Mini game format ประสบความสำเร็จ"
+  },
+  {
+    "feedback_id": "FB-235",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละคร Astra แรงเกินไป เจอใน Arena แทบไม่มีทางสู้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Single character dominance — ต้องการ nerf patch"
+  },
+  {
+    "feedback_id": "FB-236",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอโหมด Co-op เล่นกับเพื่อนแบบจริงจัง",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Co-op mode เพิ่ม social value และ session length"
+  },
+  {
+    "feedback_id": "FB-237",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "อัปเดตกราฟิกดีขึ้นมาก ฉากต่อสู้สวยงาม",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Visual upgrade ได้รับ feedback ดี"
+  },
+  {
+    "feedback_id": "FB-238",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "แต้มเควสต์รายสัปดาห์ไม่พอแลกของหลัก",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Weekly quest economy ไม่สมดุล — ควรปรับ point ratio"
+  },
+  {
+    "feedback_id": "FB-239",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Guild Boss ให้ทุกคนช่วยกันตี",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Guild Boss เพิ่ม social bonding และ guild retention"
+  },
+  {
+    "feedback_id": "FB-240",
+    "sentiment": "Neutral",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "ขอปฏิทิน Event ล่วงหน้าเพื่อวางแผนทรัพยากร",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event calendar ช่วย planning และเพิ่ม anticipation"
+  },
+  {
+    "feedback_id": "FB-241",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Upgrade material bottleneck — กระทบ progression rate"
+  },
+  {
+    "feedback_id": "FB-242",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike กระทบ new player"
+  },
+  {
+    "feedback_id": "FB-243",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "กิจกรรมใช้ stamina เยอะแต่ของแลกไม่คุ้ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Stamina cost vs reward ไม่สมดุล — ลด motivation ในการเข้าร่วม"
+  },
+  {
+    "feedback_id": "FB-244",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration ลด PvP diversity"
+  },
+  {
+    "feedback_id": "FB-245",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "One-shot mechanic ไม่แฟร์ — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-246",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "หน้าจอ Inventory แสดงผลเพี้ยน ปุ่มทับกันบนจอเล็ก",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "UI render bug — กระทบ Inventory usability บน small screen"
+  },
+  {
+    "feedback_id": "FB-247",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "อันดับ Event แข่งขันหนักมาก ผู้เล่นทั่วไปสู้ยาก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Ranking gap — ควรมี bracket แยก tier"
+  },
+  {
+    "feedback_id": "FB-248",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "รางวัลรายวันน้อยไม่คุ้มกับเวลาที่ลงทุน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Daily reward ไม่น่าสนใจ — อาจลด daily login rate"
+  },
+  {
+    "feedback_id": "FB-249",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "แต้มเควสต์รายสัปดาห์ไม่พอแลกของหลัก",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Weekly quest economy ไม่สมดุล"
+  },
+  {
+    "feedback_id": "FB-250",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "รางวัลรายวันน้อยไม่คุ้มกับเวลาที่ลงทุน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Daily reward ไม่น่าสนใจ — ลด daily login engagement"
+  },
+  {
+    "feedback_id": "FB-251",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "รางวัลรายวันน้อยไม่คุ้มกับเวลาที่ลงทุน",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Daily reward ไม่น่าสนใจ — อาจลด daily retention"
+  },
+  {
+    "feedback_id": "FB-252",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Upgrade material bottleneck — กระทบ progression rate"
+  },
+  {
+    "feedback_id": "FB-253",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "กดรับรางวัลแล้ว loading นาน สุดท้ายของไม่เข้า inventory",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Critical bug — ของหายกระทบ trust โดยตรง ต้องการ fix + compensation"
+  },
+  {
+    "feedback_id": "FB-254",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกมเด้งออกบ่อยตอนกลางคืน โดยเฉพาะเปลี่ยนแผนที่",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Crash bug ช่วงกลางคืน — อาจเกี่ยวกับ server load หรือ memory leak"
+  },
+  {
+    "feedback_id": "FB-255",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Weapon balance disparity — กระทบ equipment choice"
+  },
+  {
+    "feedback_id": "FB-256",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "แพ็กเกจเติมเงินราคาสูงมาก เพชรที่ได้ไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Package value ต่ำ — กระทบ conversion rate"
+  },
+  {
+    "feedback_id": "FB-257",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "แพ็กเกจเติมเงินราคาสูงมาก เพชรที่ได้ไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Package value ต่ำ — พิจารณา pricing strategy"
+  },
+  {
+    "feedback_id": "FB-258",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "ภารกิจ Event บังคับเล่นซ้ำหลายรอบ รู้สึก grind",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Grind loop ทำให้ player burn out"
+  },
+  {
+    "feedback_id": "FB-259",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "Event ธีมน่ารักแต่ภารกิจซ้ำมากเกินไป",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Mission repetition ลด engagement"
+  },
+  {
+    "feedback_id": "FB-260",
+    "sentiment": "Neutral",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "ขอปฏิทิน Event ล่วงหน้าเพื่อวางแผนทรัพยากร",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event calendar ช่วย player planning"
+  },
+  {
+    "feedback_id": "FB-261",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike กระทบ new player progression"
+  },
+  {
+    "feedback_id": "FB-262",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "Tutorial เร็วเกินไป อธิบายระบบมากจนจำไม่ทัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Tutorial UX ไม่ดี — New player retention risk"
+  },
+  {
+    "feedback_id": "FB-263",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "การแจ้งเตือนสีแดงมากเกินไป ไม่รู้อันไหนสำคัญ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Notification priority system ไม่ดี — ลด signal-to-noise ratio"
+  },
+  {
+    "feedback_id": "FB-264",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "ของแจกครบรอบดีเกินคาด รู้สึกว่าเกมใส่ใจผู้เล่น",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Anniversary reward สร้าง goodwill"
+  },
+  {
+    "feedback_id": "FB-265",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "Medium",
+    "ai_summary": "การแจ้งเตือนเควสต์ขึ้นซ้ำทั้งที่เคลียร์ไปแล้ว",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Quest notification bug — สร้าง confusion"
+  },
+  {
+    "feedback_id": "FB-266",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "ได้ตัวซ้ำบ่อย ระบบแลกชิ้นส่วนยังไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Duplicate protection ไม่เพียงพอ — กระทบ gacha value"
+  },
+  {
+    "feedback_id": "FB-267",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration ใน PvP — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-268",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "แพ็กเกจเติมเงินราคาสูงมาก เพชรที่ได้ไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Package value ต่ำ — กระทบ conversion rate"
+  },
+  {
+    "feedback_id": "FB-269",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Replay ดูการต่อสู้ย้อนหลัง",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "Medium",
+    "note": "Replay feature เพิ่ม engagement และ skill learning"
+  },
+  {
+    "feedback_id": "FB-270",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "การแจ้งเตือนสีแดงมากเกินไป ไม่รู้อันไหนสำคัญ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Notification priority ไม่ดี — ลด signal-to-noise ratio"
+  },
+  {
+    "feedback_id": "FB-271",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละครสายฮีลอ่อนมากเมื่อเทียบกับดาเมจบอส",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Healer role อ่อนมาก — กระทบ team composition"
+  },
+  {
+    "feedback_id": "FB-272",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "กิจกรรมใช้ stamina เยอะแต่ของแลกไม่คุ้ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Stamina cost vs reward ไม่สมดุล"
+  },
+  {
+    "feedback_id": "FB-273",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "แพ็กเกจเติมเงินราคาสูงมาก เพชรที่ได้ไม่คุ้ม",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Package value ต่ำ — กระทบ spending willingness"
+  },
+  {
+    "feedback_id": "FB-274",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "เนื้อเรื่อง Event สนุกแต่อยากให้มีเสียงพากย์เพิ่ม",
+    "suggested_owner": "Event Team",
+    "confidence": "Medium",
+    "note": "Event story quality ดี — Voice acting จะเพิ่ม immersion"
+  },
+  {
+    "feedback_id": "FB-275",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "Auto battle เลือกสกิลผิดพลาด ทำให้แพ้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "AI logic บกพร่อง — ส่งผลต่อ auto-farm efficiency"
+  },
+  {
+    "feedback_id": "FB-276",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "ตัวละคร Mika แรงเกินไป เจอใน Arena แทบไม่มีทางสู้",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Single character dominance — ต้องการ nerf patch"
+  },
+  {
+    "feedback_id": "FB-277",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "Event รอบนี้ดึงดูดให้กลับมาเล่นทุกวัน",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Event design ประสบความสำเร็จ re-engage player"
+  },
+  {
+    "feedback_id": "FB-278",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ตัวหนังสือรายละเอียดสกิลเล็กเกิน อ่านยากบนมือถือ",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Accessibility issue — Font size ต้องปรับ"
+  },
+  {
+    "feedback_id": "FB-279",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "อยากให้ปรับ balance อาวุธ ตอนนี้แรงต่างกันมาก",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Weapon balance disparity — กระทบ equipment diversity"
+  },
+  {
+    "feedback_id": "FB-280",
+    "sentiment": "Positive",
+    "category": "Positive Feedback",
+    "priority": "Low",
+    "ai_summary": "Mini game ใน Event สนุก เล่นง่ายไม่เครียด",
+    "suggested_owner": "Community Team",
+    "confidence": "High",
+    "note": "NPS บวก — Mini game format ประสบความสำเร็จ"
+  },
+  {
+    "feedback_id": "FB-281",
+    "sentiment": "Neutral",
+    "category": "Gacha / Monetization",
+    "priority": "Low",
+    "ai_summary": "ขอ preview animation ทดลองตัวละครก่อนเปิดกาชา",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "Preview ช่วย informed purchase — อาจเพิ่ม pull rate"
+  },
+  {
+    "feedback_id": "FB-282",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "High",
+    "ai_summary": "บอสใหม่ใช้สกิล one shot บ่อยเกิน ไม่แฟร์",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "One-shot mechanic ไม่แฟร์ — ต้องการ balance patch"
+  },
+  {
+    "feedback_id": "FB-283",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Low",
+    "ai_summary": "รางวัล Login รอบนี้ธรรมดา อยากได้เพชรหรือ ticket เพิ่ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Login reward ไม่น่าสนใจ — อาจลด daily login rate"
+  },
+  {
+    "feedback_id": "FB-284",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "PvP meta แคบมาก บางทีมชนะง่ายเกินไป",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Meta concentration ลด PvP diversity"
+  },
+  {
+    "feedback_id": "FB-285",
+    "sentiment": "Neutral",
+    "category": "Content Request",
+    "priority": "Low",
+    "ai_summary": "ขอระบบ Guild Boss ให้ทุกคนช่วยกันตี",
+    "suggested_owner": "Content / Design Team",
+    "confidence": "High",
+    "note": "Guild Boss เพิ่ม social engagement และ guild retention"
+  },
+  {
+    "feedback_id": "FB-286",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Medium",
+    "ai_summary": "กิจกรรมใช้ stamina เยอะแต่ของแลกไม่คุ้ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Stamina cost vs reward ไม่สมดุล"
+  },
+  {
+    "feedback_id": "FB-287",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอ stat เปรียบเทียบก่อน/หลังเปลี่ยนอุปกรณ์ตอนจัดทีม",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Stat comparison QoL — ช่วย informed decision"
+  },
+  {
+    "feedback_id": "FB-288",
+    "sentiment": "Negative",
+    "category": "Event Feedback",
+    "priority": "Medium",
+    "ai_summary": "Event ใช้ stamina รวมกับด่านปกติ บังคับต้องเลือก",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Stamina sharing ลด player freedom ในการ farm"
+  },
+  {
+    "feedback_id": "FB-289",
+    "sentiment": "Negative",
+    "category": "Gameplay / Balance",
+    "priority": "Medium",
+    "ai_summary": "ด่านยากเกินไปสำหรับผู้เล่นใหม่ไม่ถึงเดือน",
+    "suggested_owner": "Game Design / Balance",
+    "confidence": "High",
+    "note": "Difficulty spike กระทบ new player progression"
+  },
+  {
+    "feedback_id": "FB-290",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "วัตถุดิบปลุกพลังหายากมาก ฟาร์มทั้งวันไม่พอ",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Upgrade material bottleneck — กระทบ progression rate"
+  },
+  {
+    "feedback_id": "FB-291",
+    "sentiment": "Neutral",
+    "category": "UX / UI",
+    "priority": "Low",
+    "ai_summary": "ขอ stat เปรียบเทียบก่อน/หลังเปลี่ยนอุปกรณ์ตอนจัดทีม",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Stat comparison QoL — ช่วย informed decision ในการ build"
+  },
+  {
+    "feedback_id": "FB-292",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "Medium",
+    "ai_summary": "ระบบ pity ไม่ชัดเจน อ่านเงื่อนไขแล้วงง",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Pity system ไม่โปร่งใส — ลด trust ใน gacha"
+  },
+  {
+    "feedback_id": "FB-293",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "High",
+    "ai_summary": "ทองขาดตลอด อัปเกรดตัวละครแทบไม่ได้",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Gold economy ไม่สมดุล — กระทบ character progression"
+  },
+  {
+    "feedback_id": "FB-294",
+    "sentiment": "Negative",
+    "category": "Gacha / Monetization",
+    "priority": "High",
+    "ai_summary": "โรลกาชาหลายสิบครั้งไม่ได้ตัว rate up",
+    "suggested_owner": "Monetization Team",
+    "confidence": "High",
+    "note": "Rate up ไม่โปร่งใส — ส่งผลต่อ trust และ spending willingness"
+  },
+  {
+    "feedback_id": "FB-295",
+    "sentiment": "Neutral",
+    "category": "Gacha / Monetization",
+    "priority": "Low",
+    "ai_summary": "ขอ preview animation ทดลองตัวละครก่อนเปิดกาชา",
+    "suggested_owner": "Monetization Team",
+    "confidence": "Medium",
+    "note": "Preview ช่วย informed purchase decision"
+  },
+  {
+    "feedback_id": "FB-296",
+    "sentiment": "Neutral",
+    "category": "Event Feedback",
+    "priority": "Low",
+    "ai_summary": "ขอปฏิทิน Event ล่วงหน้าเพื่อวางแผนทรัพยากร",
+    "suggested_owner": "Event Team",
+    "confidence": "High",
+    "note": "Event calendar ช่วย planning และเพิ่ม anticipation"
+  },
+  {
+    "feedback_id": "FB-297",
+    "sentiment": "Negative",
+    "category": "Bug / Technical Issue",
+    "priority": "High",
+    "ai_summary": "เกม lag ในด่านบอสใหม่ เฟรมตกจนหลบไม่ทัน",
+    "suggested_owner": "QA / Engineering",
+    "confidence": "High",
+    "note": "Performance bug — กระทบ combat experience"
+  },
+  {
+    "feedback_id": "FB-298",
+    "sentiment": "Negative",
+    "category": "Reward / Economy",
+    "priority": "Low",
+    "ai_summary": "รางวัล Login รอบนี้ธรรมดา อยากได้เพชรหรือ ticket เพิ่ม",
+    "suggested_owner": "Game Design / Monetization",
+    "confidence": "High",
+    "note": "Login reward ไม่น่าสนใจ — อาจลด daily retention"
+  },
+  {
+    "feedback_id": "FB-299",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "ปุ่มย้อนกลับพาออกไปหน้าแรก เสียเวลามาก",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Navigation flow บกพร่อง — สร้าง friction"
+  },
+  {
+    "feedback_id": "FB-300",
+    "sentiment": "Negative",
+    "category": "UX / UI",
+    "priority": "Medium",
+    "ai_summary": "Tutorial เร็วเกินไป อธิบายระบบมากจนจำไม่ทัน",
+    "suggested_owner": "UX/UI Team",
+    "confidence": "High",
+    "note": "Tutorial UX ไม่ดี — New player retention risk"
+  }
+];
+
+    // --- App State ---
+    let currentPage = 1;
+    const itemsPerPage = 50;
+    let filteredData = [...feedbackData];
+
+    // Theme colors matching the OKLCH theme
+    const themeColors = {
+      cyan: '#4fd6e0',
+      purple: '#a78bfa',
+      green: '#34d399',
+      amber: '#fbbf24',
+      red: '#f87171',
+      bgCard: '#1e1c31',
+      text: '#e8eef2',
+      textDim: '#7d8590'
+    };
+
+    // Chart instances
+    let sentimentChart, categoryChart, priorityChart;
+
+    // --- Initialize Dashboard Stats & KPIs ---
+    function initDashboard() {
+      const total = feedbackData.length;
+      const negativeCount = feedbackData.filter(d => d.sentiment === 'Negative').length;
+      const positiveCount = feedbackData.filter(d => d.sentiment === 'Positive').length;
+      const neutralCount = feedbackData.filter(d => d.sentiment === 'Neutral').length;
+
+      const highPriorityCount = feedbackData.filter(d => d.priority === 'High').length;
+      const medPriorityCount = feedbackData.filter(d => d.priority === 'Medium').length;
+      const lowPriorityCount = feedbackData.filter(d => d.priority === 'Low').length;
+
+      // Update Topbar spans
+      const topbarSpans = document.querySelectorAll('.topbar-config span');
+      if (topbarSpans.length >= 3) {
+        topbarSpans[0].innerHTML = `<i class="fa-solid fa-comments"></i> ${total} ฟีดแบ็ก`;
+        topbarSpans[1].innerHTML = `<i class="fa-solid fa-face-frown" style="color: var(--neg);"></i> Negative ${((negativeCount / total) * 100).toFixed(0)}%`;
+        topbarSpans[2].innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color: var(--warn);"></i> High Priority ${((highPriorityCount / total) * 100).toFixed(0)}%`;
+      }
+
+      // Update KPI Cards
+      const kpiCards = document.querySelectorAll('.kpi-row .kpi-card');
+      if (kpiCards.length >= 4) {
+        // KPI 1: Total
+        kpiCards[0].querySelector('.kpi-value').textContent = total.toLocaleString();
+        
+        // KPI 2: Negative
+        kpiCards[1].querySelector('.kpi-value').textContent = `${((negativeCount / total) * 100).toFixed(1)}%`;
+        kpiCards[1].querySelector('.kpi-desc').textContent = `${negativeCount} รายการ ร้องเรียน PvP และเซิร์ฟเวอร์`;
+
+        // KPI 3: High Priority
+        kpiCards[2].querySelector('.kpi-value').textContent = `${((highPriorityCount / total) * 100).toFixed(1)}%`;
+        kpiCards[2].querySelector('.kpi-desc').textContent = `${highPriorityCount} รายการ ต้องรับการแก้ปัญหารีบด่วน`;
+
+        // KPI 4: Positive
+        kpiCards[3].querySelector('.kpi-value').textContent = `${((positiveCount / total) * 100).toFixed(1)}%`;
+        kpiCards[3].querySelector('.kpi-desc').textContent = `${positiveCount} รายการ ชื่นชมเนื้อเรื่อง/ดีไซน์การพากย์`;
+      }
+
+      // Render Charts
+      initCharts(negativeCount, neutralCount, positiveCount, highPriorityCount, medPriorityCount, lowPriorityCount);
+      
+      // เรียกใช้ฟังก์ชันเขียนการวิเคราะห์ข้อมูลจริงแบบไดนามิก
+      renderExecutiveSummary();
+      renderTopIssues();
+      renderRecommendedActions();
+      renderSentimentOverviewText();
+      renderRiskFlags();
+    }
+
+    // --- Initialize Chart.js Charts ---
+    function initCharts(neg, neu, pos, high, med, low) {
+      // 1. Sentiment Chart (Donut)
+      const sentimentCtx = document.getElementById('sentimentChart').getContext('2d');
+      sentimentChart = new Chart(sentimentCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Negative (แง่ลบ)', 'Neutral (ทั่วไป)', 'Positive (แง่บวก)'],
+          datasets: [{
+            data: [neg, neu, pos],
+            backgroundColor: [themeColors.red, themeColors.textDim, themeColors.green],
+            borderWidth: 1,
+            borderColor: themeColors.bgCard
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: themeColors.text,
+                font: { family: 'IBM Plex Sans Thai' }
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Category Chart (Horizontal Bar)
+      const categories = {};
+      feedbackData.forEach(d => {
+        categories[d.category] = (categories[d.category] || 0) + 1;
+      });
+      const sortedCategories = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+
+      const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+      categoryChart = new Chart(categoryCtx, {
+        type: 'bar',
+        data: {
+          labels: sortedCategories.map(c => c[0]),
+          datasets: [{
+            label: 'จำนวนรายการฟีดแบ็ก',
+            data: sortedCategories.map(c => c[1]),
+            backgroundColor: themeColors.cyan,
+            borderRadius: 4,
+            borderWidth: 0
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: themeColors.textDim, font: { family: 'Manrope' } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: themeColors.text, font: { family: 'Manrope', size: 11 } }
+            }
+          }
+        }
+      });
+
+      // 3. Priority Chart (Vertical Bar)
+      const priorityCtx = document.getElementById('priorityChart').getContext('2d');
+      priorityChart = new Chart(priorityCtx, {
+        type: 'bar',
+        data: {
+          labels: ['High (ความสำคัญสูง)', 'Medium (ความสำคัญกลาง)', 'Low (ความสำคัญต่ำ)'],
+          datasets: [{
+            label: 'ระดับความสำคัญ',
+            data: [high, med, low],
+            backgroundColor: [themeColors.red, themeColors.amber, themeColors.green],
+            borderRadius: 6,
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: themeColors.text, font: { family: 'IBM Plex Sans Thai' } }
+            },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: themeColors.textDim, font: { family: 'Manrope' } }
+            }
+          }
+        }
+      });
+    }
+
+    // --- Filter and Render Table ---
+    let currentSentimentFilter = 'All';
+    let currentPriorityFilter = 'All';
+    let currentSearchQuery = '';
+    let currentSortColumn = '';
+    let currentSortDirection = 'asc';
+
+    function applyFilters() {
+      filteredData = feedbackData.filter(item => {
+        const matchesSentiment = currentSentimentFilter === 'All' || item.sentiment === currentSentimentFilter;
+        const matchesPriority = currentPriorityFilter === 'All' || item.priority === currentPriorityFilter;
+        
+        const searchText = (item.feedback_id + ' ' + item.ai_summary + ' ' + item.note + ' ' + item.category + ' ' + item.suggested_owner).toLowerCase();
+        const matchesSearch = searchText.includes(currentSearchQuery.toLowerCase());
+        
+        return matchesSentiment && matchesPriority && matchesSearch;
+      });
+      
+      // Apply sorting if configured
+      if (currentSortColumn) {
+        filteredData.sort((a, b) => {
+          let valA = (a[currentSortColumn] || '').toString().toLowerCase();
+          let valB = (b[currentSortColumn] || '').toString().toLowerCase();
+          
+          // Custom sort for numeric IDs (e.g. FB-001, FB-010)
+          if (currentSortColumn === 'feedback_id') {
+            const numA = parseInt(valA.replace(/[^0-9]/g, '')) || 0;
+            const numB = parseInt(valB.replace(/[^0-9]/g, '')) || 0;
+            return currentSortDirection === 'asc' ? numA - numB : numB - numA;
+          }
+          
+          if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+          if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+      
+      currentPage = 1;
+      renderTable();
+    }
+
+    function handleSort(column) {
+      if (currentSortColumn === column) {
+        currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSortColumn = column;
+        currentSortDirection = 'asc';
+      }
+      
+      // Update UI icons
+      const headers = document.querySelectorAll('thead th[data-sort]');
+      headers.forEach(th => {
+        const icon = th.querySelector('.sort-icon');
+        const col = th.getAttribute('data-sort');
+        if (icon) {
+          icon.className = 'fa-solid sort-icon';
+          if (col === currentSortColumn) {
+            icon.classList.add(currentSortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down');
+            icon.style.color = 'var(--accent)';
+          } else {
+            icon.classList.add('fa-sort');
+            icon.style.color = 'var(--text-faint)';
+          }
+        }
+      });
+      
+      applyFilters();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('feedback-tbody');
+      tbody.innerHTML = '';
+      
+      const totalItems = filteredData.length;
+      const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+      
+      // Guard page range
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+      
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+      
+      const pageItems = filteredData.slice(startIndex, endIndex);
+      
+      if (pageItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-faint); padding: 30px;">ไม่พบข้อมูลฟีดแบ็กตามการค้นหาหรือตัวกรอง</td></tr>`;
+      } else {
+        pageItems.forEach(item => {
+          const tr = document.createElement('tr');
+          
+          // Sentiment badge class
+          let sentimentBadgeClass = 'badge-neu';
+          if (item.sentiment === 'Negative') sentimentBadgeClass = 'badge-neg';
+          if (item.sentiment === 'Positive') sentimentBadgeClass = 'badge-pos';
+          
+          // Priority badge class
+          let priorityBadgeClass = 'badge-low';
+          if (item.priority === 'High') priorityBadgeClass = 'badge-high';
+          if (item.priority === 'Medium') priorityBadgeClass = 'badge-med';
+          
+          tr.innerHTML = `
+            <td style="font-family: var(--mono); font-weight: 700;">${item.feedback_id}</td>
+            <td>${escapeHtml(item.ai_summary)}</td>
+            <td><span class="badge ${sentimentBadgeClass}">${item.sentiment}</span></td>
+            <td>${escapeHtml(item.category)}</td>
+            <td><span class="badge ${priorityBadgeClass}">${item.priority}</span></td>
+            <td style="font-family: var(--mono); font-size: 11px;">${escapeHtml(item.suggested_owner)}</td>
+            <td style="font-size: 12px; color: var(--text-dim);">${escapeHtml(item.note)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+      
+      // Update pagination info
+      document.getElementById('page-info').textContent = `หน้า ${currentPage} จาก ${totalPages} (ทั้งหมด ${totalItems} รายการ)`;
+      document.getElementById('prev-page-btn').disabled = currentPage === 1;
+      document.getElementById('next-page-btn').disabled = currentPage === totalPages;
+    }
+
+        // --- Dynamic Render: Executive Summary ---
+    function renderExecutiveSummary() {
+      const total = feedbackData.length;
+      const negCount = feedbackData.filter(d => d.sentiment === 'Negative').length;
+      const posCount = feedbackData.filter(d => d.sentiment === 'Positive').length;
+      const negPercent = ((negCount / total) * 100).toFixed(1);
+      const posPercent = ((posCount / total) * 100).toFixed(1);
+      
+      const categories = {};
+      feedbackData.forEach(d => {
+        categories[d.category] = (categories[d.category] || 0) + 1;
+      });
+      const sortedCategories = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+      const top1 = sortedCategories[0] ? sortedCategories[0][0] : 'N/A';
+      const top2 = sortedCategories[1] ? sortedCategories[1][0] : 'N/A';
+      const top3 = sortedCategories[2] ? sortedCategories[2][0] : 'N/A';
+      
+      const el = document.getElementById('dynamic-exec-summary');
+      if (!el) return;
+      
+      el.innerHTML = `
+        <p>
+          จากการวิเคราะห์และคัดกรองข้อมูลฟีดแบ็กจริงจากผู้เล่นจำนวน <strong>${total} รายการ</strong> ในช่วงเวลาอัปเดตล่าสุด พบว่าดัชนีความพึงพอใจโดยรวมของผู้เล่นค่อนข้างตึงเครียดอย่างรุนแรง โดยมีสัดส่วนฟีดแบ็กแง่ลบ (Negative) สูงถึง <strong>${negPercent}%</strong> (${negCount} รายการ) ในขณะที่มีฟีดแบ็กแง่บวก (Positive) เพียง <strong>${posPercent}%</strong> (${posCount} รายการ) ปัญหาสำคัญส่วนใหญ่กระจุกตัวอยู่ในหมวดหมู่ <strong>${top1}</strong>, <strong>${top2}</strong> และ <strong>${top3}</strong>
+        </p>
+        <p>
+          หากไม่มีการปรับปรุงแก้ไขปัญหาเชิงระบบที่เกี่ยวข้องกับหมวดหมู่หลักเหล่านี้ อาจส่งผลลบต่ออัตราการรักษาผู้เล่น (Retention Rate) และส่งผลกระทบโดยตรงต่อรายได้และความพึงพอใจของฐานผู้เล่นในสโตร์ต่าง ๆ
+        </p>
+        <ul>
+          <li><strong>${top1}:</strong> เป็นประเด็นที่พบมากที่สุดจำนวน ${sortedCategories[0] ? sortedCategories[0][1] : 0} รายการ ควรได้รับการตรวจสอบและวางมาตรการรับมือโดยด่วนที่สุด</li>
+          <li><strong>${top2}:</strong> พบฟีดแบ็กเข้ามาจำนวน ${sortedCategories[1] ? sortedCategories[1][1] : 0} รายการ มีความสำคัญลำดับรองลงมาแต่กระทบต่อผู้เล่นวงกว้าง</li>
+          <li><strong>${top3}:</strong> พบข้อมูลการร้องเรียนและการขอฟีเจอร์ใหม่จำนวน ${sortedCategories[2] ? sortedCategories[2][1] : 0} รายการ ส่งผลต่อเป้าหมายระยะสั้นในการปรับปรุงประสบการณ์การเล่น</li>
+        </ul>
+      `;
+    }
+
+    // --- Dynamic Render: Top Issues ---
+    function renderTopIssues() {
+      const container = document.getElementById('dynamic-top-issues');
+      if (!container) return;
+      
+      const issueCounts = {};
+      const issueRecords = {};
+      
+      feedbackData.forEach(d => {
+        if (d.category === 'Positive Feedback') return;
+        if (!issueCounts[d.ai_summary]) {
+          issueCounts[d.ai_summary] = 0;
+          issueRecords[d.ai_summary] = [];
+        }
+        issueCounts[d.ai_summary]++;
+        issueRecords[d.ai_summary].push(d);
+      });
+      
+      const sortedIssues = Object.keys(issueCounts)
+        .sort((a, b) => issueCounts[b] - issueCounts[a])
+        .slice(0, 5);
+      
+      container.innerHTML = '';
+      sortedIssues.forEach((summary, idx) => {
+        const items = issueRecords[summary];
+        const count = issueCounts[summary];
+        const cat = items[0] ? items[0].category : 'ทั่วไป';
+        
+        const highPriority = items.filter(d => d.priority === 'High').length;
+        const highPercent = ((highPriority / items.length) * 100).toFixed(0);
+        
+        const owners = {};
+        items.forEach(d => {
+          owners[d.suggested_owner] = (owners[d.suggested_owner] || 0) + 1;
+        });
+        const topOwner = Object.entries(owners).sort((a, b) => b[1] - a[1])[0] 
+          ? Object.entries(owners).sort((a, b) => b[1] - a[1])[0][0] 
+          : 'N/A';
+        
+        const notes = {};
+        items.forEach(d => {
+          notes[d.note] = (notes[d.note] || 0) + 1;
+        });
+        const topNote = Object.entries(notes).sort((a, b) => b[1] - a[1])[0] 
+          ? Object.entries(notes).sort((a, b) => b[1] - a[1])[0][0] 
+          : '-';
+        
+        const priorityColor = highPercent > 40 ? 'var(--neg)' : 'var(--warn)';
+        
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'issue-item';
+        itemDiv.innerHTML = `
+          <div class="issue-number">${idx + 1}</div>
+          <div class="issue-content">
+            <h4>${escapeHtml(summary)}</h4>
+            <div class="issue-meta">
+              <span><i class="fa-solid fa-layer-group"></i> หมวดหมู่: ${escapeHtml(cat)}</span>
+              <span><i class="fa-solid fa-flag"></i> สัดส่วนความสำคัญสูง: <span style="color: ${priorityColor}; font-weight: bold;">${highPercent}%</span></span>
+              <span><i class="fa-solid fa-user-gear"></i> ทีมชี้แนะ: ${escapeHtml(topOwner)}</span>
+            </div>
+            <p class="issue-desc">ฟีดแบ็กพบบ่อยที่สุด: "${escapeHtml(summary)}" รายละเอียดการตรวจสอบ: ${escapeHtml(topNote)} (พบอาการร้องเรียนนี้รวม ${count} รายการ)</p>
+          </div>
+        `;
+        container.appendChild(itemDiv);
+      });
+    }
+
+    // --- Dynamic Render: Recommended Actions ---
+    function renderRecommendedActions() {
+      const container = document.getElementById('dynamic-recommended-actions');
+      if (!container) return;
+      
+      const ownerGroups = {};
+      feedbackData.forEach(d => {
+        const owner = (d.suggested_owner || '').trim();
+        if (!owner) return;
+        if (!ownerGroups[owner]) ownerGroups[owner] = [];
+        ownerGroups[owner].push(d);
+      });
+      
+      const sortedOwners = Object.keys(ownerGroups).sort((a, b) => ownerGroups[b].length - ownerGroups[a].length).slice(0, 4);
+      
+      container.innerHTML = '';
+      
+      const iconMap = {
+        'QA / Engineering': 'fa-shield-halved',
+        'Game Design / Balance': 'fa-compass',
+        'Game Design / Monetization': 'fa-gem',
+        'Monetization Team': 'fa-gem',
+        'UX/UI Team': 'fa-compass',
+        'Community Team': 'fa-comments',
+        'Content / Design Team': 'fa-comments',
+        'Customer Support': 'fa-user-gear'
+      };
+      
+      sortedOwners.forEach(owner => {
+        const items = ownerGroups[owner];
+        const icon = iconMap[owner] || 'fa-clipboard-list';
+        
+        const notes = {};
+        items.forEach(d => {
+          notes[d.note] = (notes[d.note] || 0) + 1;
+        });
+        const topNotes = Object.entries(notes).sort((a, b) => b[1] - a[1]).slice(0, 2).map(n => n[0]);
+        
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'team-card';
+        
+        let actionList = '';
+        topNotes.forEach(note => {
+          actionList += `<li>ดำเนินการแก้ไขประเด็น: "${escapeHtml(note)}"</li>`;
+        });
+        
+        cardDiv.innerHTML = `
+          <h4><i class="fa-solid ${icon}"></i> ทีม ${escapeHtml(owner)} (${items.length} รายการ)</h4>
+          <ul>
+            ${actionList || '<li>อยู่ระหว่างวิเคราะห์ข้อมูลการปฏิบัติการ</li>'}
+          </ul>
+        `;
+        container.appendChild(cardDiv);
+      });
+    }
+
+    // --- Dynamic Render: Sentiment Overview Summary ---
+    function renderSentimentOverviewText() {
+      const total = feedbackData.length;
+      const negCount = feedbackData.filter(d => d.sentiment === 'Negative').length;
+      const posCount = feedbackData.filter(d => d.sentiment === 'Positive').length;
+      const negPercent = ((negCount / total) * 100).toFixed(1);
+      
+      const summaryTextEl = document.getElementById('dynamic-sentiment-summary-text');
+      if (!summaryTextEl) return;
+      
+      summaryTextEl.innerHTML = `
+        <p><strong>สรุปทัศนคติโดยรวม:</strong> ความพึงพอใจแง่ลบอยู่ที่ <strong>${negPercent}%</strong> (${negCount} รายการ) ส่วนใหญ่เกี่ยวข้องกับระบบการอัปเกรด ตัวบอสใหม่ และอาการดีเลย์ ซึ่งต้องได้รับการแก้ไขอย่างรวดเร็ว ในขณะที่แง่บวกอยู่ที่ <strong>${((posCount/total)*100).toFixed(1)}%</strong> (${posCount} รายการ) ส่วนใหญ่เป็นการชื่นชมองค์ประกอบศิลป์ (Visual/BGM) และมินิเกมใหม่</p>
+      `;
+    }
+
+    // --- Dynamic Render: Risk Flags ---
+    function renderRiskFlags() {
+      const container = document.getElementById('dynamic-risk-flags');
+      if (!container) return;
+      
+      container.innerHTML = '';
+      const total = feedbackData.length;
+      const negCount = feedbackData.filter(d => d.sentiment === 'Negative').length;
+      const negPercent = ((negCount / total) * 100).toFixed(1);
+      
+      const techBugs = feedbackData.filter(d => d.category === 'Bug / Technical Issue').length;
+      const gachaIssues = feedbackData.filter(d => d.category === 'Gacha / Monetization' && d.sentiment === 'Negative').length;
+      
+      // Churn Risk
+      if (negCount > 0) {
+        const churnDesc = negPercent > 70 
+          ? `ฟีดแบ็กแง่ลบสูงถึง ${negPercent}% อยู่ในเกณฑ์วิกฤต มีความเสี่ยงที่ผู้เล่นกลุ่มฮาร์ดคอร์จะเลิกเล่นและเปลี่ยนไปเล่นเกมคู่แข่งในเวลาอันสั้น`
+          : `ฟีดแบ็กแง่ลบอยู่ที่ ${negPercent}% มีความเสี่ยงปานกลางในการละทิ้งเกม ควรปรับปรุงความพึงพอใจทั่วไป`;
+        
+        container.innerHTML += `
+          <div class="risk-item">
+            <i class="fa-solid fa-circle-exclamation risk-icon"></i>
+            <div class="risk-content">
+              <h4>ความเสี่ยงการละทิ้งเกม (High Churn Risk)</h4>
+              <p>${churnDesc}</p>
+            </div>
+          </div>
+        `;
+      }
+      
+      // Rating Risk
+      if (techBugs > 0) {
+        const ratingDesc = techBugs > 20
+          ? `พบรายงานบั๊กทางเทคนิคและการประมวลผลสะสม ${techBugs} รายการ เสี่ยงต่อการจัดกลุ่มรีวิว 1 ดาว บน App Store/Play Store จนคะแนนตกต่ำกว่า 3.8 ดาว`
+          : `พบบั๊กทางเทคนิคประปราย (${techBugs} รายการ) ควรออกแพตช์ย่อยเพื่อป้องกันการลดระดับความพึงพอใจของแอปฯ`;
+           
+        container.innerHTML += `
+          <div class="risk-item">
+            <i class="fa-solid fa-circle-exclamation risk-icon"></i>
+            <div class="risk-content">
+              <h4>คะแนนใน App Store ลดลง (Rating Decline Risk)</h4>
+              <p>${ratingDesc}</p>
+            </div>
+          </div>
+        `;
+      }
+      
+      // Revenue Risk
+      if (gachaIssues > 0) {
+        const revDesc = gachaIssues > 15
+          ? `พบข้อร้องเรียนเกี่ยวกับระบบการเติมเงินและเรตตู้อัตราสุ่มกาชาแง่ลบจำนวน ${gachaIssues} รายการ จะส่งผลกระทบให้ความตั้งใจในการซื้อ (Purchasing Conversion) ชะลอตัวลง`
+          : `พบข้อติติงเรื่องการันตีกาชาบางส่วน (${gachaIssues} รายการ) อาจส่งผลกระทบระยะสั้นต่อรายได้กลุ่มแคมเปญใหม่`;
+           
+        container.innerHTML += `
+          <div class="risk-item">
+            <i class="fa-solid fa-circle-exclamation risk-icon"></i>
+            <div class="risk-content">
+              <h4>ผลกระทบทางรายได้ (Revenue Impact Risk)</h4>
+              <p>${revDesc}</p>
+            </div>
+          </div>
+        `;
+      }
+      
+      if (container.innerHTML === '') {
+        container.innerHTML = '<p style="color: var(--text-faint); padding: 10px; font-size: 13px;">ไม่พบสัญญาณแจ้งเตือนความเสี่ยงร้ายแรงในขณะนี้</p>';
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // --- Load Live Google Sheets Data via CORS Proxy ---
+    async function loadLatestData() {
+      const csvUrl = 'https://docs.google.com/spreadsheets/d/1ILDMxXoQoWxi6H-L7SuS0fj3OoNjaAqxJBqqEtdf6OA/export?format=csv&gid=1491107053';
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`;
+      const statusEl = document.getElementById('sync-status');
+      
+      try {
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const csvText = await response.text();
+        
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            const parsed = results.data.map(row => ({
+              feedback_id: (row.feedback_id || '').trim(),
+              sentiment: (row.Sentiment || '').trim(),
+              category: (row.Category || '').trim(),
+              priority: (row.Priority || '').trim(),
+              ai_summary: (row.ai_summary || '').trim(),
+              suggested_owner: (row['Suggested Owner'] || '').trim(),
+              confidence: (row.Confidence || '').trim(),
+              note: (row.Note || '').trim()
+            })).filter(row => row.feedback_id);
+            
+            if (parsed.length > 0) {
+              console.log(`Successfully sync'd ${parsed.length} live records from Google Sheets.`);
+              feedbackData.length = 0;
+              feedbackData.push(...parsed);
+              
+              if (sentimentChart) sentimentChart.destroy();
+              if (categoryChart) categoryChart.destroy();
+              if (priorityChart) priorityChart.destroy();
+              
+              initDashboard();
+              applyFilters();
+              
+              if (statusEl) {
+                statusEl.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--pos); font-size: 8px;"></i> ซิงค์ข้อมูลสดแล้ว';
+                statusEl.style.color = 'var(--pos)';
+              }
+            }
+          }
+        });
+      } catch (error) {
+        console.warn('Google Sheets live sync fallback:', error);
+        if (statusEl) {
+          statusEl.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--warn); font-size: 8px;"></i> โหมดออฟไลน์';
+          statusEl.style.color = 'var(--warn)';
+        }
+      }
+    }
+
+    // --- Setup Event Listeners ---
+    document.getElementById('table-search').addEventListener('input', (e) => {
+      currentSearchQuery = e.target.value;
+      applyFilters();
+    });
+
+    // Sentiment Filter Chips
+    const sentimentChips = document.querySelectorAll('#sentiment-chips .chip');
+    sentimentChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        sentimentChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        currentSentimentFilter = chip.getAttribute('data-filter');
+        applyFilters();
+      });
+    });
+
+    // Priority Filter Chips
+    const priorityChips = document.querySelectorAll('#priority-chips .chip');
+    priorityChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        priorityChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        currentPriorityFilter = chip.getAttribute('data-filter');
+        applyFilters();
+      });
+    });
+
+    // Pagination Buttons
+    document.getElementById('prev-page-btn').addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderTable();
+      }
+    });
+
+    document.getElementById('next-page-btn').addEventListener('click', () => {
+      const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderTable();
+      }
+    });
+
+    // --- Initialize on Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // Register sorting click handlers
+      const headers = document.querySelectorAll('thead th[data-sort]');
+      headers.forEach(th => {
+        th.addEventListener('click', () => {
+          const column = th.getAttribute('data-sort');
+          handleSort(column);
+        });
+      });
+
+      initDashboard();
+      renderTable();
+      loadLatestData();
+    });
+  </script>
+</body>
+</html>
