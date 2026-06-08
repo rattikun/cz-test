@@ -299,15 +299,34 @@ async function start() {
     const text = await res.text();
     const parsed = parseCSV(text);
     if (parsed.length > 1) {
+      const headers = parsed[0].map(h => h.trim());
+      const colIndex = {
+        name: headers.indexOf("ชื่อร้าน"),
+        cuisine: headers.indexOf("ประเภทอาหาร"),
+        rating: headers.indexOf("คะแนนรีวิว"),
+        reviews: headers.indexOf("จำนวนรีวิว"),
+        priceLabel: headers.indexOf("ช่วงราคา"),
+        location: headers.indexOf("ที่ตั้ง"),
+        area: headers.indexOf("พื้นที่"),
+        transit: headers.indexOf("การเดินทาง"),
+        hours: headers.indexOf("เวลาเปิด-ปิด"),
+        groupFriendly: headers.indexOf("เหมาะกับกลุ่ม"),
+        wongnaiLink: headers.indexOf("ลิงก์แหล่งข้อมูล"),
+        gmapsLink: headers.indexOf("ลิงก์ Google Map"),
+        note: headers.indexOf("หมายเหตุ"),
+        add: headers.indexOf("เพิ่มเติม"),
+      };
+
       const dataRows = parsed.slice(1);
       const list = dataRows.map((row, index) => {
-        if (row.length < 13 || !row[1]) return null;
+        const nameVal = colIndex.name !== -1 ? row[colIndex.name] : "";
+        if (!nameVal || !nameVal.trim()) return null;
         
         const id = "r_csv_" + index;
-        const name = row[1].trim();
+        const name = nameVal.trim();
         
         // Group cuisine categories using regex rules
-        const rawCuisine = row[2] || "";
+        const rawCuisine = colIndex.cuisine !== -1 ? (row[colIndex.cuisine] || "") : "";
         let cuisine = '🍽️ อื่นๆ';
         if (/ญี่ปุ่น|ซูชิ|ราเมง|ยากินิกุ|เทปัน|โอมากาเสะ|ชาบูชาบู|อิซากายะ|ทงคัตสึ/.test(rawCuisine)) {
           cuisine = '🇯🇵 อาหารญี่ปุ่น';
@@ -324,11 +343,15 @@ async function start() {
         } else if (/บุฟเฟต์|นานาชาติ|ฟิวชั่น|มิกซ์|หลากหลาย/.test(rawCuisine)) {
           cuisine = '🌐 นานาชาติ & บุฟเฟต์';
         }
-        const rating = parseFloat(row[3]) || 4.0;
-        const reviewsStr = (row[4] || "").replace(/,/g, '').trim();
+        
+        const ratingVal = colIndex.rating !== -1 ? parseFloat(row[colIndex.rating]) : 4.0;
+        const rating = isNaN(ratingVal) ? 4.0 : ratingVal;
+        
+        const reviewsVal = colIndex.reviews !== -1 ? (row[colIndex.reviews] || "") : "";
+        const reviewsStr = reviewsVal.replace(/,/g, '').trim();
         const reviews = parseInt(reviewsStr) || 0;
         
-        const priceLabel = (row[5] || "").trim() || "฿฿ (100-250 บาท)";
+        const priceLabel = colIndex.priceLabel !== -1 ? (row[colIndex.priceLabel] || "").trim() : "฿฿ (100-250 บาท)";
         let priceTHB = 300;
         const numbers = priceLabel.replace(/,/g, '').match(/\d+/g);
         if (numbers && numbers.length >= 2) {
@@ -337,13 +360,13 @@ async function start() {
           priceTHB = parseInt(numbers[0]);
         }
         
-        const location = (row[6] || "").trim();
-        const area = (row[7] || "").trim() || "สยาม";
-        const transit = (row[8] || "").trim() || "BTS";
-        const hours = (row[9] || "").trim();
-        const groupFriendly = (row[10] || "").trim() === "ใช่";
-        const wongnaiLink = (row[11] || "").trim();
-        const gmapsLink = (row[12] || "").trim();
+        const location = colIndex.location !== -1 ? (row[colIndex.location] || "").trim() : "";
+        const area = colIndex.area !== -1 ? (row[colIndex.area] || "").trim() : "สยาม";
+        const transit = colIndex.transit !== -1 ? (row[colIndex.transit] || "").trim() : "BTS";
+        const hours = colIndex.hours !== -1 ? (row[colIndex.hours] || "").trim() : "";
+        const groupFriendly = colIndex.groupFriendly !== -1 ? (row[colIndex.groupFriendly] || "").trim() === "ใช่" : true;
+        const wongnaiLink = colIndex.wongnaiLink !== -1 ? (row[colIndex.wongnaiLink] || "").trim() : "";
+        const gmapsLink = colIndex.gmapsLink !== -1 ? (row[colIndex.gmapsLink] || "").trim() : "";
         
         const capacity = groupFriendly ? Math.floor(Math.random() * 26) + 15 : Math.floor(Math.random() * 9) + 4;
         
@@ -380,15 +403,15 @@ async function start() {
           reasons.push(`คะแนน ${rating}★ — คุณภาพอาหารและบรรยากาศอยู่ในเกณฑ์มาตรฐาน`);
         }
         
-        const note = (row[13] || "").trim();
-        const add = (row[14] || "").trim();
-        if (note) {
-          reasons.push(note);
+        const noteVal = colIndex.note !== -1 ? (row[colIndex.note] || "").trim() : "";
+        const addVal = colIndex.add !== -1 ? (row[colIndex.add] || "").trim() : "";
+        if (noteVal) {
+          reasons.push(noteVal);
         } else {
           reasons.push(groupFriendly ? "เหมาะสำหรับการสังสรรค์หรือรับประทานอาหารเป็นกลุ่ม" : "พื้นที่กะทัดรัด เหมาะสำหรับกลุ่มขนาดเล็ก");
         }
-        if (add) {
-          reasons.push(add);
+        if (addVal) {
+          reasons.push(addVal);
         } else {
           reasons.push(`ตั้งอยู่ย่าน${area} เดินทางสะดวกด้วยระบบขนส่งสาธารณะ (${transit})`);
         }

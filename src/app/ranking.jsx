@@ -107,9 +107,35 @@ function RankRow({ r, rank, expanded, onToggle }) {
                 <span style={{ color: "var(--text)", fontWeight: 600, marginLeft: 4 }}>{r.hours}</span>
               </div>
             )}
-            <div className="rd-sources">
-              <span style={{ color: "var(--text-faint)", fontSize: 11.5, fontFamily: "var(--mono)" }}>แหล่งข้อมูล</span>
-              {r.sources.map((s) => <Pill key={s} tone="dim" style={{ fontSize: 11 }}>{s}</Pill>)}
+            <div className="rd-sources" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                <span style={{ color: "var(--text-faint)", fontSize: 11.5, fontFamily: "var(--mono)" }}>แหล่งข้อมูล</span>
+                {r.sources.map((s) => <Pill key={s} tone="dim" style={{ fontSize: 11 }}>{s}</Pill>)}
+              </div>
+              {r.gmapsLink && (
+                <a 
+                  href={r.gmapsLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="ghost-btn" 
+                  style={{ 
+                    display: "inline-flex", 
+                    alignItems: "center", 
+                    gap: 6, 
+                    textDecoration: "none",
+                    color: "var(--accent)",
+                    borderColor: "color-mix(in oklch, var(--accent) 30%, transparent)",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    background: "color-mix(in oklch, var(--accent) 6%, transparent)",
+                  }}
+                >
+                  <I.pin s={13} style={{ color: "var(--accent)" }} />
+                  <span>ดูแผนที่ Google Maps</span>
+                </a>
+              )}
             </div>
           </div>
         </div>
