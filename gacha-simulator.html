@@ -1,42 +1,51 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบจำลองและวิเคราะห์โอกาสเปิดกาชา (GachaSim)</title>
-  <meta name="description" content="ระบบจำลองโอกาสดรอปกาชา วิเคราะห์งบประมาณผู้เล่น (Monte Carlo) และระบบการันตี (Pity) ทำงานบนเบราว์เซอร์ 100%">
-  
+  <meta name="description"
+    content="ระบบจำลองโอกาสดรอปกาชา วิเคราะห์งบประมาณผู้เล่น (Monte Carlo) และระบบการันตี (Pity) ทำงานบนเบราว์เซอร์ 100%">
+
   <!-- TabletopAI Premium Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     /* TabletopAI Theme Variables */
     :root {
+      color-scheme: dark;
       --display: "IBM Plex Sans Thai", "Space Grotesk", system-ui, sans-serif;
       --body: "IBM Plex Sans Thai", "Manrope", system-ui, sans-serif;
       --mono: "JetBrains Mono", ui-monospace, monospace;
       --bg-hue: 250;
-      
+
       /* Core Palette */
-      --accent: oklch(0.82 0.13 195);     /* Cyan/Sky Blue - R color */
-      --accent2: oklch(0.72 0.16 292);    /* Violet/Purple - SR color */
-      --pos: oklch(0.80 0.14 158);        /* Emerald Green - Success */
-      --warn: oklch(0.84 0.14 78);        /* Amber Gold - SSR color */
-      
+      --accent: oklch(0.82 0.13 195);
+      /* Cyan/Sky Blue - R color */
+      --accent2: oklch(0.72 0.16 292);
+      /* Violet/Purple - SR color */
+      --pos: oklch(0.80 0.14 158);
+      /* Emerald Green - Success */
+      --warn: oklch(0.84 0.14 78);
+      /* Amber Gold - SSR color */
+
       /* Backgrounds */
       --bg: oklch(0.155 0.014 var(--bg-hue));
       --bg2: oklch(0.185 0.016 var(--bg-hue));
-      
+
       /* Text */
       --text: oklch(0.96 0.005 var(--bg-hue));
       --text-dim: oklch(0.74 0.012 var(--bg-hue));
       --text-faint: oklch(0.56 0.012 var(--bg-hue));
-      
+
       /* Border & Glow */
       --border: oklch(0.72 0.02 var(--bg-hue) / 0.16);
       --glow: color-mix(in oklch, var(--accent) 50%, transparent);
@@ -49,7 +58,8 @@
       --color-n: var(--text-faint);
       --color-primary: var(--accent2);
       --color-success: var(--pos);
-      --color-danger: oklch(0.70 0.15 20); /* Danger Red */
+      --color-danger: oklch(0.70 0.15 20);
+      /* Danger Red */
 
       --ssr-glow: 0 0 12px color-mix(in oklch, var(--warn) 45%, transparent);
       --primary-glow: 0 0 12px color-mix(in oklch, var(--accent) 45%, transparent);
@@ -59,7 +69,8 @@
       box-sizing: border-box;
     }
 
-    html, body {
+    html,
+    body {
       margin: 0;
       height: 100%;
       background: var(--bg);
@@ -93,12 +104,14 @@
       z-index: 0;
       pointer-events: none;
     }
+
     .orb {
       position: absolute;
       border-radius: 50%;
       filter: blur(90px);
       opacity: calc(0.18 + var(--glow-a) * 0.5);
     }
+
     .orb-a {
       width: 520px;
       height: 520px;
@@ -106,6 +119,7 @@
       top: -160px;
       right: -80px;
     }
+
     .orb-b {
       width: 480px;
       height: 480px;
@@ -113,11 +127,12 @@
       bottom: -180px;
       left: -120px;
     }
+
     .grid-fade {
       position: absolute;
       inset: 0;
       background-image: linear-gradient(var(--border) 1px, transparent 1px),
-                        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
       background-size: 46px 46px;
       mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 75%);
       -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, #000 0%, transparent 75%);
@@ -132,9 +147,11 @@
       z-index: 1;
       scroll-behavior: smooth;
     }
+
     .app-body::-webkit-scrollbar {
       width: 10px;
     }
+
     .app-body::-webkit-scrollbar-thumb {
       background: var(--border);
       border-radius: 99px;
@@ -162,11 +179,13 @@
       z-index: 5;
       flex-shrink: 0;
     }
+
     .brand {
       display: flex;
       align-items: center;
       gap: 11px;
     }
+
     .brand-mark {
       width: 38px;
       height: 38px;
@@ -177,6 +196,7 @@
       background: linear-gradient(135deg, var(--accent), var(--accent2));
       box-shadow: 0 0 18px -4px var(--glow);
     }
+
     .brand-name {
       font-family: var(--display);
       font-weight: 700;
@@ -184,6 +204,7 @@
       letter-spacing: -0.01em;
       white-space: nowrap;
     }
+
     .brand-sub {
       font-size: 11px;
       color: var(--text-faint);
@@ -191,12 +212,14 @@
       letter-spacing: .02em;
       white-space: nowrap;
     }
+
     .topbar-config {
       display: flex;
       gap: 8px;
       margin-left: 20px;
       flex-wrap: wrap;
     }
+
     .topbar-config span {
       display: flex;
       align-items: center;
@@ -210,12 +233,15 @@
       background: color-mix(in oklch, var(--bg2) 60%, transparent);
       transition: all 0.2s ease;
     }
+
     .topbar-config span svg {
       color: var(--accent);
     }
+
     .topbar-right {
       margin-left: auto;
     }
+
     a.btn-home {
       font-family: var(--display);
       font-size: 12.5px;
@@ -231,15 +257,20 @@
       align-items: center;
       gap: 0.45rem;
     }
+
     a.btn-home:hover {
       color: var(--text);
       border-color: color-mix(in oklch, var(--accent) 40%, transparent);
     }
+
     a.btn-home svg {
       color: var(--accent);
     }
 
-    h1, h2, h3, h4 {
+    h1,
+    h2,
+    h3,
+    h4 {
       font-family: var(--display);
       letter-spacing: -0.01em;
       margin: 0;
@@ -252,9 +283,11 @@
       gap: 1.5rem;
       margin-bottom: 1.5rem;
     }
+
     .full-width-section {
       margin-bottom: 1.5rem;
     }
+
     @media (max-width: 900px) {
       .main-grid {
         grid-template-columns: 1fr;
@@ -272,10 +305,12 @@
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
+
     .glass:hover {
       box-shadow: 0 12px 40px rgba(167, 139, 250, 0.08);
       border-color: color-mix(in oklch, var(--accent) 30%, transparent);
     }
+
     .card-title {
       font-size: 1.25rem;
       font-weight: 700;
@@ -288,7 +323,10 @@
     }
 
     /* Form Inputs */
-    input[type="text"], input[type="number"], select {
+    input[type="text"],
+    input[type="number"],
+    select {
+      color-scheme: dark !important;
       background: color-mix(in oklch, var(--bg2) 60%, transparent);
       border: 1px solid var(--border);
       color: var(--text);
@@ -298,9 +336,16 @@
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
       font-family: inherit;
     }
-    input:focus, select:focus {
+
+    input:focus,
+    select:focus {
       border-color: var(--accent);
       box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 20%, transparent);
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      cursor: pointer;
     }
 
     /* Buttons Style mapping to TabletopAI CTA & Ghost */
@@ -320,16 +365,21 @@
       justify-content: center;
       gap: 0.45rem;
     }
+
     button:hover {
       color: var(--text);
       border-color: color-mix(in oklch, var(--accent) 40%, transparent);
     }
+
     button:active {
       transform: scale(0.98);
     }
 
     /* Primary CTA Button style */
-    button.primary, button[type="submit"]:not(.btn-secondary), #btn-start-single, #btn-start-pov {
+    button.primary,
+    button[type="submit"]:not(.btn-secondary),
+    #btn-start-single,
+    #btn-start-pov {
       font-family: var(--display);
       font-size: 15px;
       font-weight: 600;
@@ -340,11 +390,16 @@
       border: none;
       box-shadow: 0 6px 20px -6px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
     }
-    button.primary:hover, button[type="submit"]:not(.btn-secondary):hover, #btn-start-single:hover, #btn-start-pov:hover {
+
+    button.primary:hover,
+    button[type="submit"]:not(.btn-secondary):hover,
+    #btn-start-single:hover,
+    #btn-start-pov:hover {
       transform: translateY(-1px);
       box-shadow: 0 10px 26px -6px var(--glow);
       color: var(--bg);
     }
+
     button:disabled {
       background: color-mix(in oklch, var(--bg2) 80%, transparent) !important;
       color: var(--text-faint) !important;
@@ -361,11 +416,13 @@
       width: 44px;
       height: 22px;
     }
+
     .switch input {
       opacity: 0;
       width: 0;
       height: 0;
     }
+
     .slider {
       position: absolute;
       cursor: pointer;
@@ -378,6 +435,7 @@
       transition: .2s;
       border-radius: 22px;
     }
+
     .slider:before {
       position: absolute;
       content: "";
@@ -389,12 +447,14 @@
       transition: .2s;
       border-radius: 50%;
     }
-    input:checked + .slider {
+
+    input:checked+.slider {
       background: linear-gradient(135deg, var(--accent), var(--accent2));
       border-color: transparent;
       box-shadow: 0 0 12px -2px var(--glow);
     }
-    input:checked + .slider:before {
+
+    input:checked+.slider:before {
       transform: translateX(22px);
       background-color: var(--bg);
     }
@@ -405,11 +465,13 @@
       flex-direction: column;
       gap: 0.75rem;
     }
+
     .rate-input-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
+
     .rate-input-row label {
       font-weight: bold;
       color: var(--rarity-color);
@@ -417,6 +479,7 @@
       display: flex;
       align-items: center;
     }
+
     .rate-input-row label::before {
       content: '';
       display: inline-block;
@@ -427,6 +490,7 @@
       margin-right: 8px;
       box-shadow: var(--glow-effect, none);
     }
+
     .input-addon {
       display: flex;
       align-items: center;
@@ -436,6 +500,7 @@
       overflow: hidden;
       width: 130px;
     }
+
     .input-addon input {
       background: transparent;
       border: none;
@@ -446,14 +511,17 @@
       font-family: var(--mono);
       font-size: 1rem;
     }
+
     .input-addon input:focus {
       outline: none;
       box-shadow: none;
     }
+
     .input-addon:focus-within {
       border-color: var(--rarity-color);
       box-shadow: 0 0 0 2px color-mix(in oklch, var(--rarity-color) 20%, transparent);
     }
+
     .addon-text {
       padding: 0 0.75rem;
       color: var(--text-dim);
@@ -464,6 +532,7 @@
       align-items: center;
       border-left: 1px solid var(--border);
     }
+
     .rate-summary {
       margin-top: 1.25rem;
       padding-top: 1rem;
@@ -489,21 +558,37 @@
       width: 100%;
       border-collapse: collapse;
     }
-    .item-table th, .item-table td {
-      padding: 0.6rem 0.75rem;
+
+    .item-table th,
+    .item-table td {
+      padding: 0.35rem 0.6rem;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
+
     .item-table th {
       font-weight: 600;
       color: var(--text-dim);
       font-size: 0.85rem;
       text-transform: uppercase;
       letter-spacing: 0.02em;
+      position: sticky;
+      top: 0;
+      background: var(--bg2);
+      z-index: 1;
+      box-shadow: inset 0 -1px 0 var(--border);
     }
+
     .item-table tr:hover {
       background-color: color-mix(in oklch, var(--bg) 20%, transparent);
     }
+
+    .btn-sm {
+      padding: 4px 10px !important;
+      font-size: 11px !important;
+      border-radius: 6px !important;
+    }
+
     .rarity-badge {
       font-size: 0.72rem;
       font-weight: bold;
@@ -515,6 +600,7 @@
       width: 42px;
       letter-spacing: 0.05em;
     }
+
     .rarity-badge-sm {
       font-size: 0.65rem;
       font-weight: 700;
@@ -534,6 +620,7 @@
       gap: 1rem;
       margin-bottom: 1.5rem;
     }
+
     .stat-card {
       background: color-mix(in oklch, var(--bg2) 50%, transparent);
       border: 1px solid var(--border);
@@ -542,10 +629,12 @@
       text-align: center;
       transition: all 0.2s ease;
     }
+
     .stat-card:hover {
       border-color: color-mix(in oklch, var(--accent) 30%, transparent);
       background: color-mix(in oklch, var(--bg2) 70%, transparent);
     }
+
     .stat-label {
       font-size: 0.75rem;
       text-transform: uppercase;
@@ -553,10 +642,12 @@
       color: var(--text-dim);
       margin-bottom: 0.4rem;
     }
+
     .stat-value {
       font-size: 1.5rem;
       font-weight: 700;
     }
+
     .ssr-glow-card {
       box-shadow: 0 0 15px color-mix(in oklch, var(--warn) 30%, transparent);
       border-color: color-mix(in oklch, var(--warn) 50%, transparent) !important;
@@ -569,12 +660,14 @@
       gap: 1.5rem;
       margin-bottom: 1.5rem;
     }
+
     .inner-card {
       background: color-mix(in oklch, var(--bg2) 40%, transparent);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 1rem;
     }
+
     .item-result-row {
       display: flex;
       justify-content: space-between;
@@ -582,9 +675,11 @@
       padding: 0.5rem 0;
       border-bottom: 1px solid var(--border);
     }
+
     .item-result-row:last-child {
       border-bottom: none;
     }
+
     .rarity-dot {
       display: inline-block;
       width: 8px;
@@ -593,6 +688,7 @@
       margin-right: 8px;
       vertical-align: middle;
     }
+
     @media (max-width: 768px) {
       .results-layout {
         grid-template-columns: 1fr;
@@ -608,6 +704,7 @@
       border-bottom: 1px solid var(--border);
       padding: 10px;
     }
+
     .fallback-col {
       display: flex;
       flex-direction: column;
@@ -616,6 +713,7 @@
       height: 100%;
       justify-content: flex-end;
     }
+
     .fallback-bars-wrapper {
       position: relative;
       width: 100%;
@@ -623,9 +721,11 @@
       display: flex;
       align-items: flex-end;
     }
+
     .fallback-bar {
       transition: height 0.3s ease;
     }
+
     .fallback-stats {
       text-align: center;
       font-family: var(--mono);
@@ -638,11 +738,14 @@
       width: 100%;
       border-collapse: collapse;
     }
-    .history-table th, .history-table td {
+
+    .history-table th,
+    .history-table td {
       padding: 0.75rem;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
+
     .history-table th {
       color: var(--text-dim);
       font-weight: 600;
@@ -650,6 +753,7 @@
       text-transform: uppercase;
       letter-spacing: 0.02em;
     }
+
     .history-table tr:hover {
       background-color: color-mix(in oklch, var(--bg) 20%, transparent);
     }
@@ -660,6 +764,7 @@
       justify-content: space-between;
       align-items: center;
     }
+
     .monospace {
       font-family: var(--mono);
     }
@@ -673,6 +778,7 @@
       padding-bottom: 0.25rem;
       flex-wrap: wrap;
     }
+
     .tab-btn {
       background: transparent;
       border: none;
@@ -688,23 +794,27 @@
       align-items: center;
       gap: 0.45rem;
     }
+
     .tab-btn:hover {
       color: var(--text);
       border-bottom-color: color-mix(in oklch, var(--accent) 40%, transparent);
       background: transparent;
       border-color: transparent transparent color-mix(in oklch, var(--accent) 40%, transparent) transparent;
     }
+
     .tab-btn.active {
       color: var(--accent);
       border-bottom-color: var(--accent);
       background: transparent;
       border-color: transparent transparent var(--accent) transparent;
     }
+
     .tab-btn:active {
       transform: none;
     }
   </style>
 </head>
+
 <body>
 
   <!-- Background FX -->
@@ -715,12 +825,18 @@
   </div>
 
   <div class="app">
-    
+
     <!-- Topbar Header -->
     <div class="topbar">
       <div class="brand">
         <div class="brand-mark">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21 16-4 4-4-4" />
+            <path d="M17 20V4" />
+            <path d="m3 8 4-4 4 4" />
+            <path d="M7 4v16" />
+          </svg>
         </div>
         <div>
           <div class="brand-name">GachaSim</div>
@@ -729,17 +845,28 @@
       </div>
       <div class="topbar-config">
         <span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
           <span id="topbar-rate-total">เรทรวม: --</span>
         </span>
         <span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
           <span id="topbar-pity-status">ระบบการันตี: ปิด</span>
         </span>
       </div>
       <div class="topbar-right">
         <a href="index.html" class="btn-home">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
           <span>กลับหน้าแรก</span>
         </a>
       </div>
@@ -748,13 +875,13 @@
     <!-- Scrollable main body -->
     <div class="app-body">
       <div class="container">
-        
+
         <div class="main-grid">
-          
+
           <!-- Section 1 - Rate Settings -->
-          <section class="glass">
+          <section class="glass" style="display: flex; flex-direction: column; height: 420px;">
             <h2 class="card-title" style="color: var(--color-primary);">⚙️ ตั้งค่าอัตราดรอป (Rate Settings)</h2>
-            
+
             <div class="rate-inputs-grid">
               <div class="rate-input-row" style="--rarity-color: var(--color-ssr); --glow-effect: var(--ssr-glow);">
                 <label for="rate-ssr">SSR</label>
@@ -786,20 +913,24 @@
               </div>
             </div>
 
+            <div style="flex-grow: 1;"></div>
+
             <div class="rate-summary">
               <span style="color: var(--text-dim); font-size: 0.95rem;">อัตราดรอปรวมทั้งหมด:</span>
-              <div id="rate-total-display" class="monospace" style="font-size: 1.15rem; font-weight: bold;">Total: --</div>
+              <div id="rate-total-display" class="monospace" style="font-size: 1.15rem; font-weight: bold;">Total: --
+              </div>
             </div>
 
             <div id="rate-settings-error" class="error-box" style="display: none; margin-top: 1rem;"></div>
           </section>
 
           <!-- Section 2 - Item Pool Management -->
-          <section class="glass" style="display: flex; flex-direction: column; height: 350px;">
+          <section class="glass" style="display: flex; flex-direction: column; height: 420px;">
             <h2 class="card-title" style="color: var(--color-primary);">📦 จัดการรายการไอเทม (Item Pool)</h2>
-            
+
             <form id="item-add-form" style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
-              <input type="text" id="item-name-input" placeholder="ชื่อไอเทม" required style="flex-grow: 2; min-width: 120px;">
+              <input type="text" id="item-name-input" placeholder="ชื่อไอเทม" required
+                style="flex-grow: 2; min-width: 120px;">
               <select id="item-rarity-select" style="flex-grow: 1; min-width: 80px;">
                 <option value="SSR" style="color: var(--color-ssr); background: var(--bg2);">SSR</option>
                 <option value="SR" style="color: var(--color-sr); background: var(--bg2);">SR</option>
@@ -810,13 +941,15 @@
               <button type="button" id="btn-cancel-edit" class="btn-secondary" style="display: none;">ยกเลิก</button>
             </form>
 
-            <div style="flex-grow: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: rgba(0, 0, 0, 0.15);">
+            <div
+              style="flex-grow: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: rgba(0, 0, 0, 0.15);">
               <table class="item-table">
                 <thead>
-                  <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem; color: var(--text-dim); text-align: left;">
-                    <th style="padding: 0.5rem 0.75rem; width: 65px;">ระดับ</th>
-                    <th style="padding: 0.5rem 0.75rem;">ชื่อไอเทม</th>
-                    <th style="padding: 0.5rem 0.75rem; text-align: right; width: 120px;">จัดการ</th>
+                  <tr
+                    style="border-bottom: 1px solid var(--border); font-size: 0.85rem; color: var(--text-dim); text-align: left;">
+                    <th style="width: 65px;">ระดับ</th>
+                    <th>ชื่อไอเทม</th>
+                    <th style="text-align: right; width: 120px;">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody id="item-pool-tbody">
@@ -832,8 +965,10 @@
 
         <!-- Section 3 - Simulation (จำลองการสุ่ม) -->
         <section class="glass full-width-section">
-          <h2 class="card-title" style="color: var(--color-primary); border-bottom: none; margin-bottom: 0.5rem; padding-bottom: 0;">🎮 จำลองการสุ่ม</h2>
-          
+          <h2 class="card-title"
+            style="color: var(--color-primary); border-bottom: none; margin-bottom: 0.5rem; padding-bottom: 0;">🎮
+            จำลองการสุ่ม</h2>
+
           <!-- Tab Navigation -->
           <div class="tabs-container">
             <button class="tab-btn active" data-tab="single-sim">🎲 จำลองการสุ่มปกติ</button>
@@ -842,17 +977,19 @@
 
           <!-- Tab Content Wrapper -->
           <div class="tab-contents">
-            
+
             <!-- Tab Pane 1: Single Simulation -->
             <div class="tab-content" id="tab-single-sim">
-              
+
               <div style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap;">
                 <div style="display: flex; flex-direction: column; gap: 0.4rem; min-width: 140px;">
-                  <label for="single-rolls" style="font-size: 0.88rem; color: var(--text-dim);">จำนวนการสุ่ม (ครั้ง)</label>
+                  <label for="single-rolls" style="font-size: 0.88rem; color: var(--text-dim);">จำนวนการสุ่ม
+                    (ครั้ง)</label>
                   <input type="number" id="single-rolls" value="100" min="1" step="1">
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.4rem; min-width: 140px;">
-                  <label for="single-cost" style="font-size: 0.88rem; color: var(--text-dim);">ค่าใช้จ่ายต่อการสุ่ม (฿)</label>
+                  <label for="single-cost" style="font-size: 0.88rem; color: var(--text-dim);">ค่าใช้จ่ายต่อการสุ่ม
+                    (฿)</label>
                   <input type="number" id="single-cost" value="30" min="0">
                 </div>
                 <button id="btn-start-single" style="height: 38px;">▶ เริ่มสุ่มกาชา</button>
@@ -862,7 +999,7 @@
 
               <!-- Single simulation results, initially hidden -->
               <div id="single-results-panel" style="display: none;">
-                
+
                 <!-- Stat Cards -->
                 <div class="stats-grid">
                   <div class="stat-card">
@@ -875,7 +1012,8 @@
                   </div>
                   <div class="stat-card" id="card-ssr-count">
                     <div class="stat-label" style="color: var(--color-ssr);">จำนวน SSR ที่ดรอป</div>
-                    <div class="stat-value monospace" id="stat-ssr-count" style="color: var(--color-ssr); text-shadow: var(--ssr-glow);">-</div>
+                    <div class="stat-value monospace" id="stat-ssr-count"
+                      style="color: var(--color-ssr); text-shadow: var(--ssr-glow);">-</div>
                   </div>
                   <div class="stat-card">
                     <div class="stat-label">ระดับที่ดรอปบ่อยที่สุด</div>
@@ -885,12 +1023,13 @@
 
                 <!-- Breakdown table and Item list grid -->
                 <div class="results-layout">
-                  
+
                   <div class="inner-card">
                     <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">วิเคราะห์อัตราส่วนดรอป</h3>
                     <table style="width: 100%; border-collapse: collapse;">
                       <thead>
-                        <tr style="border-bottom: 1px solid var(--border); text-align: left; font-size: 0.85rem; color: var(--text-dim);">
+                        <tr
+                          style="border-bottom: 1px solid var(--border); text-align: left; font-size: 0.85rem; color: var(--text-dim);">
                           <th style="padding: 0.5rem;">ระดับ</th>
                           <th style="padding: 0.5rem;">เรทที่ตั้งค่า</th>
                           <th style="padding: 0.5rem;">จำนวนที่ได้</th>
@@ -929,10 +1068,14 @@
               </div>
 
               <!-- History for Single Simulation -->
-              <div class="history-sub-section" style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+              <div class="history-sub-section"
+                style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
                 <div class="flex-between" style="margin-bottom: 1.25rem;">
-                  <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">📜 ประวัติการจำลองสุ่มปกติ (10 ครั้งล่าสุด)</h3>
-                  <button id="btn-clear-history" class="btn-danger btn-sm" style="display: flex; align-items: center; gap: 0.3rem;">🗑 ล้างประวัติ</button>
+                  <h3
+                    style="font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">
+                    📜 ประวัติการจำลองสุ่มปกติ (10 ครั้งล่าสุด)</h3>
+                  <button id="btn-clear-history" class="btn-danger btn-sm"
+                    style="display: flex; align-items: center; gap: 0.3rem;">🗑 ล้างประวัติ</button>
                 </div>
                 <div style="overflow-x: auto;">
                   <table class="history-table">
@@ -956,29 +1099,35 @@
 
             <!-- Tab Pane 2: Player POV Simulation -->
             <div class="tab-content" id="tab-pov-sim" style="display: none;">
-              
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+
+              <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-                  <label for="pov-budget" style="font-size: 0.88rem; color: var(--text-dim);">งบประมาณการสุ่ม (฿)</label>
+                  <label for="pov-budget" style="font-size: 0.88rem; color: var(--text-dim);">งบประมาณการสุ่ม
+                    (฿)</label>
                   <input type="number" id="pov-budget" value="3000" min="1">
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-                  <label for="pov-price" style="font-size: 0.88rem; color: var(--text-dim);">ราคาต่อการสุ่มหนึ่งครั้ง (฿)</label>
+                  <label for="pov-price" style="font-size: 0.88rem; color: var(--text-dim);">ราคาต่อการสุ่มหนึ่งครั้ง
+                    (฿)</label>
                   <input type="number" id="pov-price" value="30" min="0">
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-                  <label for="pov-sims" style="font-size: 0.88rem; color: var(--text-dim);">จำนวนรอบจำลอง (รอบ - สูงสุด 100k)</label>
+                  <label for="pov-sims" style="font-size: 0.88rem; color: var(--text-dim);">จำนวนรอบจำลอง (รอบ - สูงสุด
+                    100k)</label>
                   <input type="number" id="pov-sims" value="1000" min="1" max="100000" step="100">
                 </div>
               </div>
 
               <!-- Toggles Grid (Free Rolls & Pity) -->
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;" class="toggles-grid">
-                
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;"
+                class="toggles-grid">
+
                 <!-- Free Roll settings -->
                 <div class="inner-card">
                   <div class="flex-between" style="margin-bottom: 0.75rem;">
-                    <label for="free-roll-toggle" style="font-weight: 600; font-size: 0.95rem;">🎁 โบนัสสุ่มฟรี (Free Roll)</label>
+                    <label for="free-roll-toggle" style="font-weight: 600; font-size: 0.95rem;">🎁 โบนัสสุ่มฟรี (Free
+                      Roll)</label>
                     <label class="switch">
                       <input type="checkbox" id="free-roll-toggle" checked>
                       <span class="slider"></span>
@@ -1000,8 +1149,11 @@
                 <div class="inner-card">
                   <div class="flex-between" style="margin-bottom: 0.75rem;">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
-                      <label for="pity-toggle" style="font-weight: 600; font-size: 0.95rem;">⚖️ ระบบการันตี (Pity)</label>
-                      <span id="current-pity-display" class="badge-pity" style="display: none; font-family: var(--mono); font-size: 0.8rem; color: var(--color-ssr); background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); padding: 2px 6px; border-radius: 4px;">Pity: 0</span>
+                      <label for="pity-toggle" style="font-weight: 600; font-size: 0.95rem;">⚖️ ระบบการันตี
+                        (Pity)</label>
+                      <span id="current-pity-display" class="badge-pity"
+                        style="display: none; font-family: var(--mono); font-size: 0.8rem; color: var(--color-ssr); background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); padding: 2px 6px; border-radius: 4px;">Pity:
+                        0</span>
                     </div>
                     <label class="switch">
                       <input type="checkbox" id="pity-toggle">
@@ -1010,11 +1162,13 @@
                   </div>
                   <div id="pity-settings-inputs" style="display: none; gap: 0.5rem; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 0.2rem;">
-                      <label style="font-size: 0.8rem; color: var(--text-dim);">เริ่มการันตี (Soft Pity) สุ่มครั้งที่</label>
+                      <label style="font-size: 0.8rem; color: var(--text-dim);">เริ่มการันตี (Soft Pity)
+                        สุ่มครั้งที่</label>
                       <input type="number" id="pity-soft" value="80" min="1" style="padding: 0.4rem;">
                     </div>
                     <div style="flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 0.2rem;">
-                      <label style="font-size: 0.8rem; color: var(--text-dim);">การันตี 100% (Hard Pity) ครั้งที่</label>
+                      <label style="font-size: 0.8rem; color: var(--text-dim);">การันตี 100% (Hard Pity)
+                        ครั้งที่</label>
                       <input type="number" id="pity-hard" value="90" min="1" style="padding: 0.4rem;">
                     </div>
                   </div>
@@ -1030,10 +1184,11 @@
 
               <!-- Monte Carlo results, initially hidden -->
               <div id="pov-results-panel" style="display: none;">
-                
+
                 <!-- Session Roll breakdown -->
                 <h3 style="font-size: 1.1rem; margin-top: 0; margin-bottom: 0.75rem;">ผลลัพธ์สิทธิ์สุ่มรวมต่อรอบ</h3>
-                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); text-align: center;">
+                <div class="stats-grid"
+                  style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); text-align: center;">
                   <div class="stat-card">
                     <div class="stat-label">จำนวนสุ่มแบบจ่ายเงิน</div>
                     <div class="stat-value monospace" id="stat-paid-rolls">-</div>
@@ -1050,12 +1205,14 @@
 
                 <!-- Monte Carlo Probability results -->
                 <h3 style="font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.75rem;">ดัชนีโอกาสความน่าจะเป็น</h3>
-                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); text-align: center;">
+                <div class="stats-grid"
+                  style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); text-align: center;">
                   <div class="stat-card" style="border-color: color-mix(in oklch, var(--pos) 30%, transparent);">
                     <div class="stat-label" style="color: var(--color-success);">โอกาสได้ SSR อย่างน้อย 1 ชิ้น</div>
                     <div class="stat-value monospace" id="stat-chance-ge1" style="color: var(--color-success);">-</div>
                   </div>
-                  <div class="stat-card" style="border-color: color-mix(in oklch, var(--color-danger) 30%, transparent);">
+                  <div class="stat-card"
+                    style="border-color: color-mix(in oklch, var(--color-danger) 30%, transparent);">
                     <div class="stat-label" style="color: var(--color-danger);">โอกาสสุ่มเกลือ (ไม่ได้ SSR เลย)</div>
                     <div class="stat-value monospace" id="stat-chance-0" style="color: var(--color-danger);">-</div>
                   </div>
@@ -1074,14 +1231,17 @@
                 </div>
 
                 <!-- Highlighted Summary Text -->
-                <div class="insight-box" style="background: color-mix(in oklch, var(--accent2) 8%, transparent); border-left: 4px solid var(--color-primary); border-radius: 4px 8px 8px 4px; padding: 1.25rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
-                  <span style="font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; color: var(--color-primary); display: block; margin-bottom: 0.5rem;">บทสรุปจากการจำลองสถานการณ์</span>
+                <div class="insight-box"
+                  style="background: color-mix(in oklch, var(--accent2) 8%, transparent); border-left: 4px solid var(--color-primary); border-radius: 4px 8px 8px 4px; padding: 1.25rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
+                  <span
+                    style="font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; color: var(--color-primary); display: block; margin-bottom: 0.5rem;">บทสรุปจากการจำลองสถานการณ์</span>
                   <p id="pov-insight-text" style="margin: 0; font-size: 1.05rem; line-height: 1.5;"></p>
                 </div>
 
                 <!-- SSR distribution histogram -->
                 <div class="inner-card" style="margin-bottom: 1.5rem;">
-                  <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">แผนภูมิความน่าจะเป็นของจำนวน SSR ที่ผู้เล่นจะได้รับ</h3>
+                  <h3 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.1rem;">แผนภูมิความน่าจะเป็นของจำนวน SSR
+                    ที่ผู้เล่นจะได้รับ</h3>
                   <div style="position: relative; height: 250px; width: 100%;">
                     <canvas id="pov-chart" style="display: none;"></canvas>
                     <div id="pov-chart-fallback" style="display: none;"></div>
@@ -1096,10 +1256,14 @@
               </div>
 
               <!-- History for Player POV Simulation -->
-              <div class="history-sub-section" style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+              <div class="history-sub-section"
+                style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
                 <div class="flex-between" style="margin-bottom: 1.25rem;">
-                  <h3 style="font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">📜 ประวัติการจำลองมุมมองผู้เล่น (10 ครั้งล่าสุด)</h3>
-                  <button id="btn-clear-pov-history" class="btn-danger btn-sm" style="display: flex; align-items: center; gap: 0.3rem;">🗑 ล้างประวัติ</button>
+                  <h3
+                    style="font-size: 1.15rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem; color: var(--color-primary);">
+                    📜 ประวัติการจำลองมุมมองผู้เล่น (10 ครั้งล่าสุด)</h3>
+                  <button id="btn-clear-pov-history" class="btn-danger btn-sm"
+                    style="display: flex; align-items: center; gap: 0.3rem;">🗑 ล้างประวัติ</button>
                 </div>
                 <div style="overflow-x: auto;">
                   <table class="history-table">
@@ -1157,11 +1321,11 @@
     const ratesSRInput = document.getElementById('rate-sr');
     const ratesRInput = document.getElementById('rate-r');
     const ratesNInput = document.getElementById('rate-n');
-    
+
     // Live validation
     function validateAll() {
       const errors = [];
-      
+
       // 1. Rates check
       const ratesSum = state.rates.SSR + state.rates.SR + state.rates.R + state.rates.N;
       // Precision check (within epsilon float error range)
@@ -1169,7 +1333,7 @@
       if (!isRatesValid) {
         errors.push(`⚠ อัตราดรอปรวมทั้งหมดต้องเท่ากับ 100% พอดี (ปัจจุบัน: ${ratesSum.toFixed(2).replace(/\.00$/, '')}%)`);
       }
-      
+
       for (const r of ['SSR', 'SR', 'R', 'N']) {
         if (state.rates[r] < 0) {
           errors.push(`⚠ อัตราดรอปของระดับ ${r} ต้องไม่เป็นค่าติดลบ`);
@@ -1232,7 +1396,7 @@
           singleErrors.push("⚠ ค่าใช้จ่ายต่อการสุ่มต้องไม่ติดลบ");
           singleInputValid = false;
         }
-        
+
         if (singleErrorEl) {
           singleErrorEl.innerHTML = singleErrors.join('<br>');
           singleErrorEl.style.display = singleErrors.length > 0 ? 'block' : 'none';
@@ -1251,7 +1415,7 @@
         const budget = parseFloat(povBudgetInput.value);
         const price = parseFloat(povPriceInput.value);
         const sims = parseInt(povSimsInput.value, 10);
-        
+
         if (isNaN(budget) || budget <= 0) {
           povErrors.push("⚠ งบประมาณการสุ่มต้องมากกว่า 0");
           povInputValid = false;
@@ -1301,7 +1465,7 @@
 
       // Enable/Disable buttons based on validity
       const isGlobalValid = isRatesValid && errors.filter(e => e.includes('ยังไม่มีไอเทมในรายการสุ่ม')).length === 0 && errors.filter(e => e.includes('Pity')).length === 0;
-      
+
       const startSingleBtn = document.getElementById('btn-start-single');
       if (startSingleBtn) {
         startSingleBtn.disabled = !(isGlobalValid && singleInputValid);
@@ -1327,10 +1491,10 @@
     function escapeHtml(str) {
       if (typeof str !== 'string') return '';
       return str.replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     // Render Item Pool List
@@ -1338,22 +1502,22 @@
       const tbody = document.getElementById('item-pool-tbody');
       if (!tbody) return;
       tbody.innerHTML = '';
-      
+
       let hasItems = false;
       const rarities = ['SSR', 'SR', 'R', 'N'];
-      
+
       rarities.forEach(rarity => {
         const items = state.itemPool[rarity];
         items.forEach((item, index) => {
           hasItems = true;
           const tr = document.createElement('tr');
-          
+
           let badgeColor = '';
           if (rarity === 'SSR') badgeColor = 'var(--color-ssr)';
           else if (rarity === 'SR') badgeColor = 'var(--color-sr)';
           else if (rarity === 'R') badgeColor = 'var(--color-r)';
           else badgeColor = 'var(--color-n)';
-          
+
           tr.innerHTML = `
             <td>
               <span class="rarity-badge" style="background-color: ${badgeColor}; box-shadow: ${rarity === 'SSR' ? 'var(--ssr-glow)' : 'none'}">${rarity}</span>
@@ -1367,7 +1531,7 @@
           tbody.appendChild(tr);
         });
       });
-      
+
       if (!hasItems) {
         tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">ยังไม่มีไอเทมในรายการ กรุณากรอกชื่อและเลือกประเภทด้านบนเพื่อเพิ่ม!</td></tr>';
       }
@@ -1378,7 +1542,7 @@
       const itemValue = state.itemPool[rarity][index];
       document.getElementById('item-name-input').value = itemValue;
       document.getElementById('item-rarity-select').value = rarity;
-      
+
       state.editing = { rarity, index };
       document.getElementById('btn-add-item').textContent = '✓ อัปเดตไอเทม';
       document.getElementById('btn-cancel-edit').style.display = 'inline-block';
@@ -1399,7 +1563,7 @@
         display.textContent = `Pity Counter: ${state.pityCounter}`;
         display.style.display = state.pityEnabled ? 'inline-block' : 'none';
       }
-      
+
       const topbarPity = document.getElementById('topbar-pity-status');
       if (topbarPity) {
         if (state.pityEnabled) {
@@ -1419,10 +1583,10 @@
     // Roll Once Logic with Pity implementation
     function rollOnce(rates, itemPool, pityState = state) {
       let selectedRarity = null;
-      
+
       if (state.pityEnabled) {
         pityState.pityCounter++;
-        
+
         // Check hard pity
         if (pityState.pityCounter >= state.pityHard) {
           selectedRarity = 'SSR';
@@ -1432,7 +1596,7 @@
           if (pityState.pityCounter >= state.pitySoft) {
             currentSSRRate = Math.min(100, rates.SSR + (pityState.pityCounter - state.pitySoft + 1) * 10);
           }
-          
+
           const rand = Math.random() * 100;
           if (rand < currentSSRRate) {
             selectedRarity = 'SSR';
@@ -1440,7 +1604,7 @@
             // Distribute remaining rate space amongst SR, R, N proportionally
             const remainingSum = rates.SR + rates.R + rates.N;
             const newRemaining = 100 - currentSSRRate;
-            
+
             let cumulative = currentSSRRate;
             const otherRarities = ['SR', 'R', 'N'];
             for (const rarity of otherRarities) {
@@ -1453,7 +1617,7 @@
             }
           }
         }
-        
+
         // Reset pity counter on SSR pull
         if (selectedRarity === 'SSR') {
           pityState.pityCounter = 0;
@@ -1470,9 +1634,9 @@
           }
         }
       }
-      
+
       if (!selectedRarity) selectedRarity = 'N';
-      
+
       const items = itemPool[selectedRarity];
       return {
         rarity: selectedRarity,
@@ -1484,18 +1648,18 @@
     function runSimulation() {
       const rollsInput = document.getElementById('single-rolls');
       const costInput = document.getElementById('single-cost');
-      
+
       const rolls = parseInt(rollsInput.value, 10);
       const costPerRoll = parseFloat(costInput.value);
-      
+
       const results = [];
       let ssrCount = 0;
-      
+
       // Temporary state clone to process rolls linearly
       const pityState = {
         pityCounter: state.pityCounter
       };
-      
+
       for (let i = 0; i < rolls; i++) {
         const rolled = rollOnce(state.rates, state.itemPool, pityState);
         results.push({
@@ -1508,16 +1672,16 @@
           ssrCount++;
         }
       }
-      
+
       // Write back updated pity counter to global state
       state.pityCounter = pityState.pityCounter;
       state.lastPullResults = results;
-      
+
       // Compute statistics
       const totalCost = rolls * costPerRoll;
       const rarityCounts = { SSR: 0, SR: 0, R: 0, N: 0 };
       results.forEach(r => rarityCounts[r.rarity]++);
-      
+
       let mostCommon = 'N';
       let maxCount = -1;
       for (const key of ['SSR', 'SR', 'R', 'N']) {
@@ -1526,7 +1690,7 @@
           mostCommon = key;
         }
       }
-      
+
       // Save history run
       const historyEntry = {
         timestamp: new Date().toLocaleTimeString(),
@@ -1539,7 +1703,7 @@
       if (state.history.length > 10) {
         state.history.pop();
       }
-      
+
       // Update displays
       renderSingleResults(rarityCounts, results, mostCommon);
       renderHistory();
@@ -1549,32 +1713,32 @@
     // Render Results panel HTML
     function renderSingleResults(rarityCounts, results, mostCommon) {
       document.getElementById('stat-total-rolls').textContent = results.length;
-      
+
       const totalCost = results.length * parseFloat(document.getElementById('single-cost').value || 0);
       document.getElementById('stat-total-cost').textContent = `฿${totalCost.toLocaleString()}`;
       document.getElementById('stat-ssr-count').textContent = rarityCounts.SSR;
-      
+
       const ssrStatCard = document.getElementById('card-ssr-count');
       if (rarityCounts.SSR > 0) {
         ssrStatCard.classList.add('ssr-glow-card');
       } else {
         ssrStatCard.classList.remove('ssr-glow-card');
       }
-      
+
       document.getElementById('stat-most-common').textContent = mostCommon;
       document.getElementById('stat-most-common').style.color = `var(--color-${mostCommon.toLowerCase()})`;
-      
+
       // Result Table
       const tbody = document.getElementById('single-results-tbody');
       tbody.innerHTML = '';
-      
+
       ['SSR', 'SR', 'R', 'N'].forEach(rarity => {
         const count = rarityCounts[rarity];
         const rateSet = state.rates[rarity];
         const actualPercent = results.length > 0 ? ((count / results.length) * 100).toFixed(2) : '0.00';
-        
+
         let color = `var(--color-${rarity.toLowerCase()})`;
-        
+
         const tr = document.createElement('tr');
         tr.style.color = color;
         tr.innerHTML = `
@@ -1587,7 +1751,7 @@
         `;
         tbody.appendChild(tr);
       });
-      
+
       // Pulls by Item List
       const itemCounts = {};
       results.forEach(r => {
@@ -1596,25 +1760,25 @@
         }
         itemCounts[r.item].count++;
       });
-      
+
       const sortedItems = Object.entries(itemCounts).map(([name, data]) => ({
         name,
         count: data.count,
         rarity: data.rarity
       })).sort((a, b) => b.count - a.count);
-      
+
       const itemsContainer = document.getElementById('single-item-results');
       itemsContainer.innerHTML = '';
-      
+
       if (sortedItems.length === 0) {
         itemsContainer.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 1rem;">ยังไม่มีข้อมูลสุ่มกาชา</div>';
       } else {
         sortedItems.forEach(item => {
           const el = document.createElement('div');
           el.className = 'item-result-row';
-          
+
           let badgeColor = `var(--color-${item.rarity.toLowerCase()})`;
-          
+
           el.innerHTML = `
             <div style="display: flex; align-items: center;">
               <span class="rarity-badge-sm" style="background-color: ${badgeColor}; box-shadow: ${item.rarity === 'SSR' ? 'var(--ssr-glow)' : 'none'}">${item.rarity}</span>
@@ -1634,19 +1798,19 @@
       const tbody = document.getElementById('history-tbody');
       if (!tbody) return;
       tbody.innerHTML = '';
-      
+
       if (state.history.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">ยังไม่มีประวัติการจำลองสุ่มปกติ</td></tr>';
         return;
       }
-      
+
       state.history.forEach((entry, index) => {
         const tr = document.createElement('tr');
         if (index === 0) {
           tr.style.backgroundColor = 'rgba(167, 139, 250, 0.07)';
           tr.style.borderLeft = '3px solid var(--color-primary)';
         }
-        
+
         tr.innerHTML = `
           <td style="color: var(--text-dim); font-size: 0.85rem; padding: 0.75rem;">${entry.timestamp}</td>
           <td style="font-family: var(--mono); padding: 0.75rem;">${entry.rolls}</td>
@@ -1663,19 +1827,19 @@
       const tbody = document.getElementById('pov-history-tbody');
       if (!tbody) return;
       tbody.innerHTML = '';
-      
+
       if (state.povHistory.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 1.5rem;">ยังไม่มีประวัติการจำลองในมุมมองผู้เล่น</td></tr>';
         return;
       }
-      
+
       state.povHistory.forEach((entry, index) => {
         const tr = document.createElement('tr');
         if (index === 0) {
           tr.style.backgroundColor = 'rgba(167, 139, 250, 0.07)';
           tr.style.borderLeft = '3px solid var(--color-primary)';
         }
-        
+
         tr.innerHTML = `
           <td style="color: var(--text-dim); font-size: 0.85rem; padding: 0.75rem;">${entry.timestamp}</td>
           <td style="font-family: var(--mono); padding: 0.75rem;">฿${entry.budget.toLocaleString()}</td>
@@ -1691,7 +1855,7 @@
     function renderSingleChart(rarityCounts, totalRolls) {
       const canvas = document.getElementById('rarity-chart');
       const fallback = document.getElementById('rarity-chart-fallback');
-      
+
       if (typeof Chart !== 'undefined') {
         canvas.style.display = 'block';
         fallback.style.display = 'none';
@@ -1699,7 +1863,7 @@
         if (rarityChartInstance) {
           rarityChartInstance.destroy();
         }
-        
+
         rarityChartInstance = new Chart(canvas, {
           type: 'bar',
           data: {
@@ -1760,7 +1924,7 @@
     function renderRarityCSSFallback(rarityCounts, totalRolls) {
       const fallback = document.getElementById('rarity-chart-fallback');
       fallback.innerHTML = '';
-      
+
       const expectedSSR = (state.rates.SSR / 100) * totalRolls;
       const expectedSR = (state.rates.SR / 100) * totalRolls;
       const expectedR = (state.rates.R / 100) * totalRolls;
@@ -1781,7 +1945,7 @@
       items.forEach(r => {
         const actHeight = (r.count / maxCount) * 90; // scale max height
         const expHeight = (r.expected / maxCount) * 90;
-        
+
         const col = document.createElement('div');
         col.className = 'fallback-col';
         col.innerHTML = `
@@ -1831,29 +1995,29 @@
       const budgetInput = document.getElementById('pov-budget');
       const priceInput = document.getElementById('pov-price');
       const simsInput = document.getElementById('pov-sims');
-      
+
       const budget = parseFloat(budgetInput.value);
       const price = parseFloat(priceInput.value);
       const sims = parseInt(simsInput.value, 10);
-      
+
       const freeRollToggle = document.getElementById('free-roll-toggle');
       const freeRollEnabled = freeRollToggle.checked;
       const everyX = parseInt(document.getElementById('free-every-x').value || 10, 10);
       const getsY = parseInt(document.getElementById('free-gets-y').value || 1, 10);
-      
+
       const rollsBreakdown = calculateTotalRolls(budget, price, freeRollEnabled, everyX, getsY);
       const totalRolls = rollsBreakdown.totalRolls;
-      
+
       // Run Monte Carlo
       const results = runMonteCarlo(sims, totalRolls, state.rates, state.itemPool);
-      
+
       // Aggregate probabilities
       let ssrGe1 = 0;
       let ssrEq0 = 0;
       let totalSSR = 0;
       let bestSSR = -1;
       let worstSSR = Infinity;
-      
+
       results.forEach(val => {
         if (val >= 1) ssrGe1++;
         if (val === 0) ssrEq0++;
@@ -1861,11 +2025,11 @@
         if (val > bestSSR) bestSSR = val;
         if (val < worstSSR) worstSSR = val;
       });
-      
+
       const chanceAtLeastOne = (ssrGe1 / sims) * 100;
       const chanceZero = (ssrEq0 / sims) * 100;
       const avgSSR = totalSSR / sims;
-      
+
       // Store summary for POV CSV
       state.lastPovSummary = {
         budget,
@@ -1880,7 +2044,7 @@
         bestSSR,
         worstSSR
       };
-      
+
       // Save POV history run
       const povHistoryEntry = {
         timestamp: new Date().toLocaleTimeString(),
@@ -1894,18 +2058,18 @@
         state.povHistory.pop();
       }
       renderPovHistory();
-      
+
       // Render Displays
       document.getElementById('stat-paid-rolls').textContent = rollsBreakdown.paidRolls;
       document.getElementById('stat-free-rolls').textContent = rollsBreakdown.freeRolls;
       document.getElementById('stat-total-rolls-pov').textContent = totalRolls;
-      
+
       document.getElementById('stat-chance-ge1').textContent = `${chanceAtLeastOne.toFixed(1)}%`;
       document.getElementById('stat-chance-0').textContent = `${chanceZero.toFixed(1)}%`;
       document.getElementById('stat-avg-ssr').textContent = avgSSR.toFixed(2);
       document.getElementById('stat-best-ssr').textContent = bestSSR;
       document.getElementById('stat-worst-ssr').textContent = worstSSR;
-      
+
       // Dynamic Insight text styling
       let insightText = '';
       if (freeRollEnabled) {
@@ -1914,9 +2078,9 @@
         insightText = `ด้วยงบประมาณ ฿${budget.toLocaleString()} ราคาครั้งละ ฿${price} คุณจะได้สิทธิ์สุ่มทั้งหมด ${rollsBreakdown.paidRolls} ครั้งต่อรอบ สำหรับรอบการจำลองทั้งหมด ${sims.toLocaleString()} รอบสุ่ม พบว่าคุณมีโอกาสถึง ${chanceAtLeastOne.toFixed(1)}% ที่จะได้รับไอเทมระดับ SSR อย่างน้อย 1 ชิ้น`;
       }
       document.getElementById('pov-insight-text').textContent = insightText;
-      
+
       document.getElementById('pov-results-panel').style.display = 'block';
-      
+
       // Render Histogram
       renderHistogramChart(results, bestSSR);
     }
@@ -1925,7 +2089,7 @@
     function renderHistogramChart(results, bestSSR) {
       const canvas = document.getElementById('pov-chart');
       const fallback = document.getElementById('pov-chart-fallback');
-      
+
       // Aggregate distributions
       const distribution = {};
       for (let val = 0; val <= bestSSR; val++) {
@@ -1934,10 +2098,10 @@
       results.forEach(count => {
         distribution[count]++;
       });
-      
+
       const labels = Object.keys(distribution);
       const chartData = Object.values(distribution);
-      
+
       if (typeof Chart !== 'undefined') {
         canvas.style.display = 'block';
         fallback.style.display = 'none';
@@ -1945,7 +2109,7 @@
         if (histogramChartInstance) {
           histogramChartInstance.destroy();
         }
-        
+
         histogramChartInstance = new Chart(canvas, {
           type: 'bar',
           data: {
@@ -1992,19 +2156,19 @@
       fallback.style.maxHeight = '250px';
       fallback.style.overflowY = 'auto';
       fallback.style.padding = '10px';
-      
+
       const maxSims = Math.max(...Object.values(distribution)) || 1;
-      
+
       Object.entries(distribution).forEach(([ssrCount, count]) => {
         const pct = (count / maxSims) * 70;
         const percentage = ((count / simCount) * 100).toFixed(1);
-        
+
         const row = document.createElement('div');
         row.style.display = 'flex';
         row.style.alignItems = 'center';
         row.style.marginBottom = '6px';
         row.style.fontSize = '0.85rem';
-        
+
         row.innerHTML = `
           <div style="width: 70px; font-family: var(--mono); color: var(--color-ssr); font-weight: bold;">SSR ${ssrCount} ชิ้น</div>
           <div style="flex-grow: 1; height: 16px; background-color: rgba(255, 255, 255, 0.05); border-radius: 4px; overflow: hidden; margin: 0 10px;">
@@ -2059,16 +2223,16 @@
       updateRatesFromInputs();
       renderHistory();
       renderPovHistory();
-      
+
       // Tab switching logic
       const tabBtns = document.querySelectorAll('.tab-btn');
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
           const targetTab = btn.dataset.tab;
-          
+
           tabBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          
+
           document.querySelectorAll('.tab-content').forEach(content => {
             if (content.id === `tab-${targetTab}`) {
               content.style.display = 'block';
@@ -2114,7 +2278,7 @@
         if (state.editing) {
           const oldRarity = state.editing.rarity;
           const oldIndex = state.editing.index;
-          
+
           if (oldRarity === rarity) {
             state.itemPool[rarity][oldIndex] = name;
           } else {
@@ -2139,15 +2303,15 @@
         if (e.target.classList.contains('delete-btn')) {
           const rarity = e.target.dataset.rarity;
           const index = parseInt(e.target.dataset.index, 10);
-          
+
           state.itemPool[rarity].splice(index, 1);
-          
+
           if (state.editing && state.editing.rarity === rarity && state.editing.index === index) {
             cancelEdit();
           } else if (state.editing && state.editing.rarity === rarity && state.editing.index > index) {
             state.editing.index--;
           }
-          
+
           renderItemPool();
           validateAll();
         } else if (e.target.classList.contains('edit-btn')) {
@@ -2211,4 +2375,5 @@
     });
   </script>
 </body>
+
 </html>
